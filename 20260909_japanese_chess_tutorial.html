@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本将棋入门 · 零基础学将棋</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f6efe3;color:#333;line-height:1.8}
+  header{background:linear-gradient(135deg,#2c2418,#4a3a24);color:#f5e6c8;text-align:center;padding:48px 16px 40px}
+  header h1{font-size:2.2rem;letter-spacing:.15em}
+  header h1 span{color:#e8c078}
+  header p{opacity:.85;margin-top:10px}
+  nav{position:sticky;top:0;background:#fffdf7;border-bottom:1px solid #e0d4bd;display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:8px;z-index:10}
+  nav a{color:#6b5326;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:.95rem}
+  nav a:hover{background:#f0e4cc}
+  main{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+  section.card{background:#fffdf7;border:1px solid #e6dbc4;border-radius:14px;padding:28px;margin-bottom:28px;box-shadow:0 2px 10px rgba(90,70,40,.06)}
+  h2{font-size:1.45rem;color:#4a3a1c;border-left:6px solid #c89b3c;padding-left:12px;margin-bottom:12px}
+  h3{color:#5c4620;margin:16px 0 6px;font-size:1.1rem}
+  p{margin:8px 0}
+  ul,ol{margin-left:1.4em}
+  li{margin:4px 0}
+  .tip{background:#fdf3dc;border-left:4px solid #c89b3c;padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:.95rem}
+  .warn{background:#fbe9e4;border-left:4px solid #b3542e;padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:.95rem}
+  footer{text-align:center;color:#9a8b6f;padding:24px;font-size:.85rem}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.95rem;background:#fffef9}
+  th,td{border:1px solid #e0d4bd;padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#f3ead2;color:#4a3a1c}
+  tr:nth-child(even) td{background:#fbf7ec}
+
+  /* ---------- 将棋棋子（五边形楔形） ---------- */
+  .koma{display:inline-flex;align-items:center;justify-content:center;
+    background:linear-gradient(180deg,#f8e6b6,#e6bd72);color:#2e2008;
+    clip-path:polygon(50% 0,100% 28%,84% 100%,16% 100%,0 28%);
+    writing-mode:vertical-rl;font-weight:bold;user-select:none;line-height:1;
+    text-orientation:upright}
+  .koma.red{color:#a02818}
+  .koma.rev{transform:rotate(180deg)}
+
+  /* ---------- 9x9 初始盘面 ---------- */
+  .board-wrap{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;margin-top:14px}
+  .shogi-board{display:grid;grid-template-columns:repeat(9,1fr);gap:0;width:max-content;
+    background:linear-gradient(145deg,#eec87e,#d9a24a);border:3px solid #6b4d23;border-radius:6px;
+    padding:6px;box-shadow:0 4px 14px rgba(90,60,20,.25)}
+  .sq{width:44px;height:48px;border:1px solid #6b4d23;display:flex;align-items:center;justify-content:center;background:rgba(255,244,214,.35)}
+  .sq .koma{width:34px;height:40px;font-size:17px}
+  .board-side{flex:1;min-width:240px}
+  .hand-row{display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap}
+  .hand-row .koma{width:30px;height:36px;font-size:15px}
+  .zone-label{text-align:center;font-size:.85rem;color:#8a6f3d;margin:4px 0}
+
+  /* ---------- 走法小图（5x5） ---------- */
+  .moves-grid{display:flex;flex-wrap:wrap;gap:18px;margin-top:12px}
+  .move-card{background:#fbf5e6;border:1px solid #e6dbc4;border-radius:12px;padding:14px;width:228px;
+    box-shadow:0 2px 6px rgba(90,70,40,.08)}
+  .move-card h4{color:#4a3a1c;font-size:1.02rem;margin-bottom:2px}
+  .move-card .jp{font-size:.82rem;color:#9a8b6f;margin-bottom:8px}
+  .mini{display:grid;grid-template-columns:repeat(5,34px);grid-template-rows:repeat(5,34px);
+    width:max-content;margin:6px auto;border:2px solid #6b4d23;background:#f0d392;border-radius:4px}
+  .mc{border:1px solid rgba(107,77,35,.55);display:flex;align-items:center;justify-content:center;font-size:15px}
+  .mc .koma{width:26px;height:30px;font-size:13px}
+  .dot1{color:#2e7d32;font-weight:bold;font-size:17px}
+  .arrow{color:#1a5fb4;font-weight:bold;font-size:16px}
+  .jump{color:#8e44ad;font-weight:bold;font-size:16px}
+  .move-card p{font-size:.88rem;line-height:1.6;margin:6px 0 0;color:#55462e}
+  .legend{font-size:.85rem;color:#7a6a48;margin-top:10px}
+  .legend b{font-weight:normal}
+  .tag{display:inline-block;background:#4a3a24;color:#f5e6c8;padding:1px 10px;border-radius:12px;font-size:.8rem;margin-left:6px;vertical-align:middle}
+  @media(max-width:640px){.sq{width:34px;height:38px}.sq .koma{width:26px;height:31px;font-size:13px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>日本将棋<span>入门</span></h1>
+  <p>9×9 棋盘 · 20 枚棋子 · 吃子可打入 —— 世界上变化最丰富的棋类之一</p>
+</header>
+<nav>
+  <a href="#s1">简介</a>
+  <a href="#s2">棋盘与棋子</a>
+  <a href="#s3">走法一览</a>
+  <a href="#s4">升变</a>
+  <a href="#s5">持子与打入</a>
+  <a href="#s6">胜负</a>
+  <a href="#s7">开局与战术</a>
+  <a href="#s8">与象棋对比</a>
+  <a href="#s9">结语</a>
+</nav>
+<main>
+
+<section class="card" id="s1">
+  <h2>一、将棋是什么？</h2>
+  <p>将棋（しょうぎ / Shogi）是日本的传统棋类，与国际象棋、中国象棋同出一源：它们共同的祖先是古印度的<b>恰图兰卡</b>（Chaturanga）。恰图兰卡向东传入中国演变为中国象棋，再经朝鲜半岛或海上传入日本，大约在平安时代（约 10—12 世纪）逐渐定型为今天的将棋。</p>
+  <ul>
+    <li>棋盘为 <b>9 横 9 竖共 81 格</b>，棋子下在<b>格子内</b>（这一点与国际象棋相同，与中国象棋、围棋的交叉点不同）。</li>
+    <li>双方各有 <b>20 枚棋子</b>，共 8 种。棋子没有黑白之分，<b>靠棋子尖端所指的方向区分敌我</b>。</li>
+    <li>将棋最大的特色是<b>「持子打入」</b>：吃掉的棋子可以重新放回棋盘为自己所用，因此几乎没有废子，和棋率极低，被称为<b>世界上子力利用率最高、变化最复杂的棋类之一</b>。</li>
+    <li>将棋在日本有完整的职业棋士制度，在欧美、中国也拥有越来越多的爱好者，是国际智力运动联盟认可的棋种之一。</li>
+  </ul>
+</section>
+
+<section class="card" id="s2">
+  <h2>二、棋盘与棋子</h2>
+  <p>将棋棋子是<b>五边形楔形（木牌）</b>，正面写有日文汉字（楷书或行书），尖端<b>指向对方</b>。走到敌阵深处可以翻面<b>升变</b>，背面（通常为红字）写着升变后的名称。靠近自己的三行叫「自阵」，靠近对方的三行叫「敌阵」。</p>
+  <p>坐标记法：从对方视角看，竖列从右到左叫 <b>1 筋～9 筋</b>，横行从上到下叫 <b>一段～九段</b>。例如「７六歩」表示把步兵走到第 7 筋第 6 段。</p>
+  <div class="board-wrap">
+    <div>
+      <div class="zone-label">▲ 对方（上手）阵地 ▲</div>
+      <div class="shogi-board" id="initBoard"></div>
+      <div class="zone-label">▼ 己方（下手）阵地 ▼</div>
+    </div>
+    <div class="board-side">
+      <h3>初始布置（共 40 枚）</h3>
+      <ul>
+        <li><b>第一行</b>：香車・桂馬・銀将・金将・王将・金将・銀将・桂馬・香車</li>
+        <li><b>第二行</b>：角行（左前）、飛車（右前）各一枚</li>
+        <li><b>第三行</b>：九枚歩兵排成一列</li>
+      </ul>
+      <h3>王将与玉将</h3>
+      <p>「王将」和「玉将」是同一种棋子，走法完全一样。习惯上由棋力较高（或年长）的一方使用「王将」，另一方用「玉将」，以示谦逊。</p>
+      <div class="hand-row">
+        <span class="koma" style="width:34px;height:40px;font-size:17px">王将</span>
+        <span class="koma" style="width:34px;height:40px;font-size:17px">玉将</span>
+        <span class="koma red" style="width:34px;height:40px;font-size:17px">龍王</span>
+        <span class="koma red" style="width:34px;height:40px;font-size:17px">と金</span>
+        <span>← 正面黑字，升变后翻面为红字</span>
+      </div>
+    </div>
+  </div>
+  <h3>八种棋子一览</h3>
+  <table>
+    <tr><th>棋子</th><th>日文（读音）</th><th>数量</th><th>走法概要</th><th>升变后</th></tr>
+    <tr><td><b>王将 / 玉将</b></td><td>王将（おうしょう）</td><td>1</td><td>周围八方各一格</td><td>不能升变</td></tr>
+    <tr><td><b>飛車</b>（飞车）</td><td>飛車（ひしゃ）</td><td>1</td><td>纵横方向任意格</td><td>龍王</td></tr>
+    <tr><td><b>角行</b>（角）</td><td>角行（かくぎょう）</td><td>1</td><td>斜线方向任意格</td><td>龍馬</td></tr>
+    <tr><td><b>金将</b>（金）</td><td>金将（きんしょう）</td><td>2</td><td>前、斜前、横、直后共 6 方向一格</td><td>不能升变</td></tr>
+    <tr><td><b>銀将</b>（银）</td><td>銀将（ぎんしょう）</td><td>2</td><td>正前与四个斜向共 5 方向一格</td><td>成銀</td></tr>
+    <tr><td><b>桂馬</b>（桂马）</td><td>桂馬（けいま）</td><td>2</td><td>向前跳「日」字（仅前方两格，可越子）</td><td>成桂</td></tr>
+    <tr><td><b>香車</b>（香车）</td><td>香車（きょうしゃ）</td><td>2</td><td>正前方任意格</td><td>成香</td></tr>
+    <tr><td><b>歩兵</b>（步兵）</td><td>歩兵（ふひょう）</td><td>9</td><td>正前方一格，吃子也是正前一格</td><td>と金</td></tr>
+  </table>
+  <div class="tip">记忆口诀：<b>「金六银五桂跳二，香直步一王走八；飞车纵横角走斜。」</b>金将、银将是防守核心，飞车、角行是进攻主力（合称「大駒」大子）。</div>
+</section>
+
+<section class="card" id="s3">
+  <h2>三、走法一览（图解）</h2>
+  <p>下图中棋子一律<b>朝上为前方</b>（指向对方）。图例：<span class="dot1">●</span> 一步可走；<span class="arrow">↑↗</span> 沿该方向任意格；<span class="jump">★</span> 跳跃到达（可越过中间棋子）。</p>
+  <div class="moves-grid" id="movesGrid"></div>
+  <div class="warn">注意：<b>歩兵吃子也是正前方一格</b>，不像国际象棋的兵那样斜吃。两枚步兵迎面相遇会互相顶住，谁都吃不了谁——这时就要靠换子或「打入」来打开局面。</div>
+</section>
+
+<section class="card" id="s4">
+  <h2>四、升变（成り）：翻面变强</h2>
+  <p>棋子在敌阵——即从自己这边数起的<b>第 7、8、9 段（对方三段）</b>——<b>进入、在其中移动、或从其中走出</b>时，都可以（自愿）翻面升变。升变后走法增强，且<b>不能变回来</b>（除非被吃掉成为持子，打入时以未升变的面目出现）。</p>
+  <table>
+    <tr><th>升变前</th><th>升变后</th><th>变化</th></tr>
+    <tr><td>飛車</td><td><b>龍王</b>（りゅうおう）</td><td>保留纵横任意格，<b>增加</b>四个斜向各一格</td></tr>
+    <tr><td>角行</td><td><b>龍馬</b>（りゅうま，简称「馬」）</td><td>保留斜线任意格，<b>增加</b>纵横各一格</td></tr>
+    <tr><td>銀将 → 成銀、桂馬 → 成桂、香車 → 成香、歩兵 → <b>と金</b></td><td colspan="2">四种升变棋子的走法<b>全部与金将相同</b>（6 方向一格）</td></tr>
+    <tr><td>金将、王将</td><td colspan="2"><b>不能升变</b></td></tr>
+  </table>
+  <h3>强制升变</h3>
+  <p>有些棋子如果<b>不升变就会永远无法再动</b>，这时必须升变：</p>
+  <ul>
+    <li><b>歩兵、香車</b>走到最后一行（敌阵一段）时必须升变，否则下一步无处可走；</li>
+    <li><b>桂馬</b>走到最后两行（敌阵一段、二段）时必须升变。</li>
+  </ul>
+  <div class="tip">实战提示：歩兵升变成「と金」后价值大增，在敌阵里既能攻又能吃子，是将棋中盘最常用的破局手段之一，有「と金は寄せの要」（成步是收束的关键）之说。</div>
+</section>
+
+<section class="card" id="s5">
+  <h2>五、持子与打入（将棋最大的特色）</h2>
+  <p>吃掉对方的棋子后，它不会离场，而是放到棋盘旁的<b>「駒台」（驹台）</b>上，成为你的<b>持子</b>（也叫「手持棋子」）。轮到你走时，可以不走棋盘上的棋子，改为把一枚持子<b>打入</b>到棋盘上<b>任意空格</b>——尖端朝对方，且打入的是<b>未升变</b>的一面。</p>
+  <div class="hand-row">
+    <span>持子示例（你的驹台）：</span>
+    <span class="koma" style="width:30px;height:36px;font-size:15px">飛車</span>
+    <span class="koma" style="width:30px;height:36px;font-size:15px">銀将</span>
+    <span class="koma" style="width:30px;height:36px;font-size:15px">歩兵</span>
+    <span class="koma" style="width:30px;height:36px;font-size:15px">歩兵</span>
+    <span>→ 随时可以在空格上「复活」它们</span>
+  </div>
+  <h3>打入的四条限制</h3>
+  <ol>
+    <li><b>二歩（二步）</b>：步兵不能打入<b>已有己方未升变步兵的同一列（同一筋）</b>。「と金」不算步兵，不受此限。</li>
+    <li><b>无处可走的禁打</b>：步兵、香車不能打入最后一行，桂馬不能打入最后两行——因为打进去立刻永远无法移动。</li>
+    <li><b>打歩詰（打步诘）禁止</b>：不能用「打入步兵」这一手<b>直接将死</b>对方。但是，打入步兵<b>将军</b>而对方尚有应手（不算将死）是完全合法的。</li>
+    <li><b>打入的当回合不能升变</b>：即使打入敌阵三行之内，也要等它下次移动时才能升变。</li>
+  </ol>
+  <div class="warn">这条规则体系意味着：<b>优势方不会因为兑子而简化局面</b>，吃掉的大子转眼就可能出现在自家王将头顶。防守方也总能把持子垫在王前，所以将棋的攻杀格外绵长、逆转极多，和棋极罕见。</div>
+</section>
+
+<section class="card" id="s6">
+  <h2>六、胜负判定</h2>
+  <ul>
+    <li><b>将死（詰み）</b>：对方王将/玉将被将军且无任何合法应手，即获胜。顺带一提，王将被吃的局面在规则上不会出现——轮到的一方必须先应将。</li>
+    <li><b>认输（投了）</b>：局面无望时可以认输，职业对局中绝大多数对局以投了结束。礼仪上输家还会主动把王将放进对方阵中示意。</li>
+    <li><b>千日手</b>：同一局面（包括轮到谁走、双方持子完全相同）<b>重复出现四次</b>判为和棋，双方<b>交换先后手立刻重新对局</b>。若一方在长将（连续将军）造成循环，则长将方判负。</li>
+    <li><b>持将棋（僵局）</b>：双方王将都进入敌阵、互相无法将死时，按点数议和（大子 5 分、小子 1 分，王不计；各满 24 分为和）。入门阶段了解一下即可。</li>
+  </ul>
+  <div class="tip">因为打入规则的存在，将棋几乎没有「和棋」，连千日手也要重赛分胜负——这是它与围棋、象棋很大的不同。</div>
+</section>
+
+<section class="card" id="s7">
+  <h2>七、开局、围玉与基本战术</h2>
+  <h3>两大流派：居飛車 vs 振飛車</h3>
+  <p>看飞车（主力大子）的位置就能区分思路：</p>
+  <ul>
+    <li><b>居飛車</b>：飞车留在原始位置附近（右翼），配合角行正面强攻。代表战法有 <b>矢倉</b>（稳健厚势）、<b>角換わり</b>（换角，双方交换角行后比拼手筋）、<b>相掛かり</b>（双方飞车面对面互顶）、<b>横歩取り</b>（吃边步的激战法）。</li>
+    <li><b>振飛車</b>：把飞车转移到中路或左翼（如 <b>四間飛車</b>、中飛車、三間飛車），先围厚自己的王，再伺机反击。适合喜欢后发制人的棋风。</li>
+  </ul>
+  <h3>围玉（囲い）：先给王将盖好「城堡」</h3>
+  <ul>
+    <li><b>美濃囲い</b>：振飞车常用，王将躲入角部，金银层层护卫，侧面极硬。</li>
+    <li><b>穴熊囲い</b>：把王将藏进最深处的角（像熊钻进洞），坚固无比但费手数，成型前怕被速攻。</li>
+    <li><b>金無双</b>、矢倉囲い、雁木囲い等也是常见阵型。原则：金将贴王、银将外侧、香车桂马守边。</li>
+  </ul>
+  <h3>新手三个战术起点</h3>
+  <ol>
+    <li><b>棒銀</b>：银将沿一路直线向前猛冲，配合飞车、步兵强突，简单直接，是体会「攻め」的最好教材。</li>
+    <li><b>歩の交換と打入</b>：用步兵与对方换步，拿到「持步」后打入对方步兵的身后（たれ歩）或空档制造弱点——步是将棋的灵魂，「歩のない将棋は負け将棋」（没步的将棋是输棋）。</li>
+    <li><b>端攻め</b>：从边路（1 筋或 9 筋）推进步兵，配合香车、桂马突袭——角落里香车桂马防守弱，常能一举破城。</li>
+  </ol>
+</section>
+
+<section class="card" id="s8">
+  <h2>八、与中国象棋、国际象棋对比</h2>
+  <table>
+    <tr><th></th><th>日本将棋</th><th>中国象棋</th><th>国际象棋</th></tr>
+    <tr><td><b>棋盘 / 落子点</b></td><td>9×9＝81 格，下在格内</td><td>9×10 交叉点，有河界与九宫</td><td>8×8＝64 格，下在格内</td></tr>
+    <tr><td><b>被吃棋子</b></td><td><b>成为持子，可随时打入</b>任意空格</td><td>离场，不再使用</td><td>离场，不再使用</td></tr>
+    <tr><td><b>升变</b></td><td>进入敌阵三行内，大部分棋子可翻面升变</td><td>无升变（兵过河仅增强走法）</td><td>兵到底线升变为后/车/象/马</td></tr>
+    <tr><td><b>兵（歩）的吃法</b></td><td>正前一格直吃</td><td>兵直吃（过河可横吃）</td><td>斜前一格吃子</td></tr>
+    <tr><td><b>子力利用 / 和棋率</b></td><td>几乎全盘皆可用，<b>和棋极罕见</b></td><td>兑子简化后易成和</td><td>残局简化后和棋常见</td></tr>
+    <tr><td><b>节奏特点</b></td><td>先围玉、后总攻，攻杀绵长多变</td><td>出子快、对攻早、杀法明快</td><td>中心争夺与兵形结构为核心</td></tr>
+  </table>
+  <p>一句话总结：象棋比的是「把对方的子力消耗光」，将棋比的是「把对方的子力变成自己的」。会下中国象棋或国际象棋的朋友，只需重点适应<b>打入规则</b>和<b>金将、银将、桂马的走法</b>即可快速上手。</p>
+</section>
+
+<section class="card" id="s9">
+  <h2>九、结语与学习建议</h2>
+  <p>将棋规则看起来多，其实核心只有四句话：<b>记住八种走法、进敌阵可升变、吃子归我能打入、将死对方就赢</b>。建议的学习路径：</p>
+  <ol>
+    <li>先用「どうぶつしょうぎ」（动物将棋）或 5×5 迷你将棋熟悉走法与打入；</li>
+    <li>在 81Dojo、将棋ウォーズ、ぴよ将棋 等免费平台与 AI 或真人对弈（本页为离线教程，不附链接，请自行搜索名称）；</li>
+    <li>背诵两三个基础诘将棋（一手诘、三手诘），训练「读棋」；</li>
+    <li>选一个喜欢的战法（新手推荐棒银或四间飞车）反复使用，自然形成棋风。</li>
+  </ol>
+  <div class="tip">将棋谚云：「王手は追う手」（将军如同追赶）——进攻是最好的学习。祝你早日打出第一记漂亮的「と金」！</div>
+</section>
+
+</main>
+<footer>日本将棋入门 · 单文件网页，双击即可在浏览器中打开使用</footer>
+
+<script>
+/* ============ 初始盘面（9x9） ============ */
+(function(){
+  // 行：一段→九段（上→下）；列：9筋→1筋（左→右）
+  var rows=[
+    ['香','桂','銀','金','王','金','銀','桂','香'],
+    ['','角','','','','','','飛',''],
+    ['歩','歩','歩','歩','歩','歩','歩','歩','歩'],
+    ['','','','','','','','',''],
+    ['','','','','','','','',''],
+    ['','','','','','','','',''],
+    ['歩','歩','歩','歩','歩','歩','歩','歩','歩'],
+    ['','飛','角','','','','','',''],
+    ['香','桂','銀','金','玉','金','銀','桂','香']
+  ];
+  var full={王:'王将',玉:'玉将',飛:'飛車',角:'角行',金:'金将',銀:'銀将',桂:'桂馬',香:'香車',歩:'歩兵'};
+  var bd=document.getElementById('initBoard');
+  rows.forEach(function(row,y){
+    row.forEach(function(ch,x){
+      var sq=document.createElement('div'); sq.className='sq';
+      if(ch){
+        var k=document.createElement('span');
+        k.className='koma'+(y<3?' rev':'');
+        k.textContent=full[ch];
+        sq.appendChild(k);
+      }
+      bd.appendChild(sq);
+    });
+  });
+})();
+
+/* ============ 走法图解（5x5） ============ */
+(function(){
+  // dy<0 为前方（向上）；one=一步, line=沿线任意格, jump=跳跃
+  var pieces=[
+    {name:'王将 / 玉将',jp:'おうしょう / ぎょくしょう',char:'王将',one:[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]],
+     note:'周围八方各走一格。将棋的一切攻防都围绕它展开。'},
+    {name:'飛車',jp:'ひしゃ（飞车）',char:'飛車',line:[[0,-1],[0,1],[-1,0],[1,0]],
+     note:'纵横任意格，不能越子。进攻第一主力（大駒）。'},
+    {name:'角行',jp:'かくぎょう',char:'角行',line:[[-1,-1],[1,-1],[-1,1],[1,1]],
+     note:'斜线任意格，不能越子。与飞车并称「大駒」。'},
+    {name:'金将',jp:'きんしょう',char:'金将',one:[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[0,1]],
+     note:'前、斜前、横、直后共 6 方向一格——不能斜退。护王主力。'},
+    {name:'銀将',jp:'ぎんしょう',char:'銀将',one:[[-1,-1],[0,-1],[1,-1],[-1,1],[1,1]],
+     note:'正前与四个斜向共 5 方向一格——不能横走、不能直退。'},
+    {name:'桂馬',jp:'けいま',char:'桂馬',jump:[[-1,-2],[1,-2]],
+     note:'向前跳「日」字，只有前方两个落点，可越过中间棋子。'},
+    {name:'香車',jp:'きょうしゃ',char:'香車',line:[[0,-1]],
+     note:'正前方任意格，不能横移与后退。边路攻击的利器。'},
+    {name:'歩兵',jp:'ふひょう',char:'歩兵',one:[[0,-1]],
+     note:'只走正前一格，吃子也是正前一格（与国际象棋不同）。'},
+    {name:'龍王（飛車升变）',jp:'りゅうおう',char:'龍王',red:true,line:[[0,-1],[0,1],[-1,0],[1,0]],one:[[-1,-1],[1,-1],[-1,1],[1,1]],
+     note:'飞车 + 四个斜向各一格，攻守兼备的最强棋子。'},
+    {name:'龍馬（角行升变）',jp:'りゅうま（馬）',char:'龍馬',red:true,line:[[-1,-1],[1,-1],[-1,1],[1,1]],one:[[0,-1],[-1,0],[1,0],[0,1]],
+     note:'角行 + 纵横各一格，俗称「馬」。'},
+    {name:'成銀・成桂・成香・と金',jp:'なりぎん など',char:'と金',red:true,one:[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[0,1]],
+     note:'四种升变棋走法全同金将：6 方向一格。歩兵升变写作「と」。'}
+  ];
+  var arrows={'-1,-1':'↖','0,-1':'↑','1,-1':'↗','-1,0':'←','1,0':'→','-1,1':'↙','0,1':'↓','1,1':'↘'};
+  var grid=document.getElementById('movesGrid');
+  pieces.forEach(function(p){
+    var card=document.createElement('div'); card.className='move-card';
+    var h=document.createElement('h4'); h.textContent=p.name;
+    if(p.red){var t=document.createElement('span');t.className='tag';t.textContent='升变';h.appendChild(t);}
+    var jp=document.createElement('div'); jp.className='jp'; jp.textContent=p.jp;
+    var mini=document.createElement('div'); mini.className='mini';
+    var oneSet={}, jumpSet={};
+    (p.one||[]).forEach(function(d){oneSet[d[0]+','+d[1]]=1;});
+    (p.jump||[]).forEach(function(d){jumpSet[d[0]+','+d[1]]=1;});
+    for(var y=0;y<5;y++)for(var x=0;x<5;x++){
+      var c=document.createElement('div'); c.className='mc';
+      var dx=x-2, dy=y-2;
+      if(dx===0&&dy===0){
+        var k=document.createElement('span'); k.className='koma'+(p.red?' red':''); k.textContent=p.char;
+        c.appendChild(k);
+      }else if(jumpSet[dx+','+dy]){
+        var s=document.createElement('span'); s.className='jump'; s.textContent='★'; c.appendChild(s);
+      }else if(oneSet[dx+','+dy]){
+        var s2=document.createElement('span'); s2.className='dot1'; s2.textContent='●'; c.appendChild(s2);
+      }else{
+        // 沿线：方向单位向量与某 line 一致
+        var hit=null;
+        (p.line||[]).forEach(function(d){
+          var ux=d[0],uy=d[1];
+          if(ux===0&&dx===0&&Math.sign(dy)===Math.sign(uy)) hit=d;
+          else if(uy===0&&dy===0&&Math.sign(dx)===Math.sign(ux)) hit=d;
+          else if(ux!==0&&uy!==0&&Math.abs(dx)===Math.abs(dy)&&Math.sign(dx)===Math.sign(ux)&&Math.sign(dy)===Math.sign(uy)) hit=d;
+        });
+        if(hit&&!oneSet[dx+','+dy]){
+          var s3=document.createElement('span'); s3.className='arrow'; s3.textContent=arrows[hit[0]+','+hit[1]]; c.appendChild(s3);
+        }
+      }
+      mini.appendChild(c);
+    }
+    var nt=document.createElement('p'); nt.textContent=p.note;
+    card.appendChild(h); card.appendChild(jp); card.appendChild(mini); card.appendChild(nt);
+    grid.appendChild(card);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>奥赛罗入门 · Reversi Tutorial</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #2b2b3a;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #f0c96b; }
+  .subtitle { font-size: 13px; color: #999; margin-bottom: 16px; }
+
+  .layout { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+  /* ===== 棋盘 ===== */
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 64px);
+    grid-template-rows: repeat(8, 64px);
+    gap: 2px;
+    background: #0c4a26;              /* 深色网格线 */
+    border: 8px solid #0c4a26;
+    border-radius: 6px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    user-select: none;
+  }
+  .cell {
+    width: 64px; height: 64px; background: #1b7a43;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; cursor: pointer;
+  }
+  .cell:hover { background: #219152; }
+  .cell.hint::after {
+    content: ""; width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(255, 255, 255, .55); position: absolute;
+    box-shadow: 0 0 6px rgba(255,255,255,.6);
+  }
+  .cell.lastmove { box-shadow: inset 0 0 0 3px rgba(240, 201, 107, .95); }
+
+  .piece {
+    width: 52px; height: 52px; border-radius: 50%;
+    pointer-events: none; position: relative; z-index: 1;
+    box-shadow: inset 0 -5px 8px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.4);
+  }
+  .piece.b { background: radial-gradient(circle at 35% 30%, #555, #0a0a0a 70%); }
+  .piece.w { background: radial-gradient(circle at 35% 30%, #fff, #c8c8c8 75%); }
+  .piece.flip { animation: flipDisc .45s ease; }
+  @keyframes flipDisc { 50% { transform: rotateX(90deg) scale(1.06); } }
+
+  /* ===== 侧边栏 ===== */
+  .panel { width: 320px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #3a3a4d; border-radius: 10px; padding: 14px 16px; }
+  .card h2 { font-size: 15px; color: #f0c96b; margin-bottom: 8px; }
+  .card p, .card li { font-size: 13px; line-height: 1.7; color: #ccc; }
+  .card ol, .card ul { padding-left: 18px; }
+
+  #coach {
+    min-height: 64px; background: #2e4a35; border-left: 4px solid #4caf50;
+    border-radius: 6px; padding: 12px 14px; font-size: 14px; line-height: 1.6;
+  }
+  #coach.warn { background: #4d3a2e; border-left-color: #ff7043; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  button, select {
+    font-family: inherit; font-size: 14px; padding: 8px 16px;
+    border: none; border-radius: 6px; cursor: pointer;
+    background: #f0c96b; color: #333; font-weight: bold;
+  }
+  button:hover { background: #ffe08f; }
+  select { background: #555; color: #eee; font-weight: normal; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ccc; }
+
+  #status { text-align: center; font-size: 15px; margin: 10px 0; min-height: 22px; color: #f0c96b; font-weight: bold; }
+  #scores { display: flex; justify-content: space-between; font-size: 13px; color: #bbb; margin-bottom: 6px; }
+  #scores.bottom { margin: 6px 0 0; }
+
+  @media (max-width: 600px) {
+    #board { grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); gap: 2px; border-width: 6px; }
+    .cell { width: 40px; height: 40px; }
+    .piece { width: 32px; height: 32px; }
+    .cell.hint::after { width: 14px; height: 14px; }
+    .panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>⚫⚪ 奥赛罗（黑白棋）入门</h1>
+<div class="subtitle">Reversi 8×8 · 黑棋先行 · 绿点 = 可以落子的位置 · 夹住就翻转</div>
+
+<div class="layout">
+  <div>
+    <div id="scores"><span id="labelW">⚪ 白方</span><span id="scoreW"></span></div>
+    <div id="board"></div>
+    <div id="status"></div>
+    <div id="scores" class="bottom"><span id="labelB">⚫ 黑方</span><span id="scoreB"></span></div>
+  </div>
+
+  <div class="panel">
+    <div id="coach">欢迎来到奥赛罗！你执<strong>黑棋先行</strong>。点击棋盘上的绿点落子——新落下的子必须在某个方向上<strong>夹住对方的白子</strong>，被夹住的白子就会翻转成你的黑子。</div>
+
+    <div class="card controls">
+      <button onclick="resetGame()">🔄 重新开始</button>
+      <select id="mode" onchange="resetGame()">
+        <option value="ai">人机对战（AI 执白）</option>
+        <option value="pvp">双人对战</option>
+      </select>
+    </div>
+
+    <div class="card toggle-row">
+      <input type="checkbox" id="teachMode" checked onchange="render()">
+      <label for="teachMode">教学模式（显示提示与讲解）</label>
+    </div>
+
+    <div class="card">
+      <h2>📖 规则速览</h2>
+      <ol>
+        <li><strong>夹住翻转</strong>：落子后，在横、竖、斜任意方向上，被你的新子和旧子<strong>夹住的一串对方棋子</strong>全部翻转成你的颜色。</li>
+        <li><strong>有子可翻才能下</strong>：每一步必须至少翻转一颗对方的子，否则不能落在那一格。</li>
+        <li><strong>无子可下自动跳过</strong>：轮到你但全盘没有合法位置时，自动跳过一手，由对方继续下。</li>
+        <li><strong>结束</strong>：棋盘下满，或<strong>双方都无子可下</strong>时，游戏结束。</li>
+        <li><strong>胜负</strong>：结束时棋盘上<strong>子多的一方获胜</strong>。</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>💡 新手小贴士</h2>
+      <ul>
+        <li><strong>抢角！</strong>四个角上的子永远不会被翻转，是最值钱的位置。</li>
+        <li>角还空着时，<strong>别急着下在角旁边的 C 位 / X 位</strong>，等于把角拱手让人。</li>
+        <li>前期子少<strong>不代表劣势</strong>——子多反而容易被翻，先占好位置更重要。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= 数据结构 =================
+// board[r][c]: 0=空, 'b'=黑子, 'w'=白子
+// 黑方先行；人机模式下玩家执黑、AI 执白。
+// r 从上到下 0..7（对应棋谱行 1..8），c 从左到右 0..7（对应 a..h）。
+
+let board, turn, gameOver, lastMove, lastFlipped, moveCount, saidEarlyTip;
+
+const DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const DIR_NAME = {
+  '-1,-1': '左上', '-1,0': '上', '-1,1': '右上',
+  '0,-1': '左',                 '0,1': '右',
+  '1,-1': '左下',  '1,0': '下',  '1,1': '右下'
+};
+const CORNERS = [[0,0],[0,7],[7,0],[7,7]];
+const CORNER_NAME = { '0,0': '左上角', '0,7': '右上角', '7,0': '左下角', '7,7': '右下角' };
+
+const isTeach = () => document.getElementById('teachMode').checked;
+const mode = () => document.getElementById('mode').value;
+const opp = t => t === 'b' ? 'w' : 'b';
+const inBoard = (r, c) => r >= 0 && r < 8 && c >= 0 && c < 8;
+const isCorner = (r, c) => CORNERS.some(([cr, cc]) => cr === r && cc === c);
+
+function initBoard() {
+  board = Array.from({length: 8}, () => Array(8).fill(0));
+  // 初始四子：d4、e5 为白；e4、d5 为黑
+  board[3][3] = 'w'; board[3][4] = 'b';
+  board[4][3] = 'b'; board[4][4] = 'w';
+}
+
+function turnName(t) {
+  if (mode() === 'ai') return t === 'b' ? '你（黑方）' : 'AI（白方）';
+  return t === 'b' ? '黑方' : '白方';
+}
+
+function counts() {
+  let nb = 0, nw = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      if (board[r][c] === 'b') nb++;
+      if (board[r][c] === 'w') nw++;
+    }
+  return [nb, nw];
+}
+
+// ================= 走法与翻转 =================
+// 在 (r,c) 落 color 子能翻转哪些子？返回 null 表示这步不合法。
+function flipsAt(r, c, color) {
+  if (board[r][c]) return null;
+  const enemy = opp(color), cells = [], dirs = [];
+  for (const [dr, dc] of DIRS) {
+    const line = [];
+    let nr = r + dr, nc = c + dc;
+    // 沿着方向连续经过对方棋子
+    while (inBoard(nr, nc) && board[nr][nc] === enemy) {
+      line.push([nr, nc]);
+      nr += dr; nc += dc;
+    }
+    // 这串对方棋子的尽头必须是自己的子，才算夹住
+    if (line.length && inBoard(nr, nc) && board[nr][nc] === color) {
+      cells.push(...line);
+      dirs.push(DIR_NAME[dr + ',' + dc]);
+    }
+  }
+  return cells.length ? { r, c, cells, dirs } : null;
+}
+
+// 某方所有合法走法
+function legalMoves(color) {
+  const out = [];
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      const m = flipsAt(r, c, color);
+      if (m) out.push(m);
+    }
+  return out;
+}
+
+// (r,c) 是否紧挨着一个仍空着的角（即危险的 C 位 / X 位）
+function nextToEmptyCorner(r, c) {
+  for (const [cr, cc] of CORNERS)
+    if (board[cr][cc] === 0 && Math.abs(cr - r) <= 1 && Math.abs(cc - c) <= 1)
+      return [cr, cc];
+  return null;
+}
+
+// ================= 游戏流程 =================
+function resetGame() {
+  initBoard();
+  turn = 'b';            // 黑方先行
+  gameOver = false;
+  lastMove = null;
+  lastFlipped = new Set();
+  moveCount = 0;
+  saidEarlyTip = false;
+  say("欢迎来到奥赛罗！你执<strong>黑棋先行</strong>。点击棋盘上的绿点落子——新落下的子必须在某个方向上<strong>夹住对方的白子</strong>，被夹住的白子就会翻转成你的黑子。");
+  render();
+}
+
+function say(msg, warn = false) {
+  if (!isTeach() && !warn) { document.getElementById('coach').textContent = ""; return; }
+  const el = document.getElementById('coach');
+  el.innerHTML = msg;
+  el.className = warn ? 'warn' : '';
+}
+
+function clickCell(r, c) {
+  if (gameOver) return;
+  if (mode() === 'ai' && turn === 'w') return;   // AI 回合不可点
+
+  const mv = legalMoves(turn).find(m => m.r === r && m.c === c);
+  if (mv) { doMove(mv); return; }
+
+  // 点了不合法的空格：讲解为什么不能下
+  if (isTeach() && !board[r][c])
+    say("⚠️ 这一格不能下：落子后必须在横、竖、斜<strong>至少一个方向</strong>上夹住对方的棋子（你的新子和你的旧子之间夹着连续的对子）。绿点标出的才是合法位置。", true);
+}
+
+function doMove(mv) {
+  const mover = turn;
+  board[mv.r][mv.c] = mover;
+  lastFlipped = new Set();
+  for (const [fr, fc] of mv.cells) {
+    board[fr][fc] = mover;
+    lastFlipped.add(fr + ',' + fc);
+  }
+  lastMove = [mv.r, mv.c];
+  moveCount++;
+
+  // —— 教练讲解 ——
+  const enemyName = mover === 'b' ? '白子' : '黑子';
+  let msg, warn = false;
+  if (isCorner(mv.r, mv.c)) {
+    msg = `🎉 <strong>占角！</strong>${turnName(mover)}拿下了${CORNER_NAME[mv.r + ',' + mv.c]}。角上的子<strong>永远无法被翻转</strong>，还能沿边向外扩张，是全盘最值钱的位置。`;
+  } else {
+    const near = nextToEmptyCorner(mv.r, mv.c);
+    if (near) {
+      msg = `⚠️ 注意！${turnName(mover)}下在了${CORNER_NAME[near[0] + ',' + near[1]]}旁边的<strong>危险格（C 位 / X 位）</strong>。角还空着时下在这里，对手下一步就可能直接占角。`;
+      warn = true;
+    } else {
+      msg = `${turnName(mover)}落子，沿「${mv.dirs.join('、')}」方向夹住了 ${mv.cells.length} 颗${enemyName}，它们全部翻转。`;
+    }
+  }
+  // 前期「子少 ≠ 劣势」的教学提示（只讲一次）
+  const [nb, nw] = counts();
+  if (!saidEarlyTip && moveCount >= 6 && moveCount <= 30 &&
+      ((mover === 'b' && nb < nw) || (mover === 'w' && nw < nb))) {
+    saidEarlyTip = true;
+    msg += "<br>💡 现在子少<strong>不代表劣势</strong>：奥赛罗前期子多反而容易被大片翻转，关键是抢角、占边这类好位置，翻盘往往在最后几步。";
+  }
+  say(msg, warn);
+
+  endTurn();
+}
+
+function endTurn() {
+  turn = opp(turn);
+  resolveTurn();
+}
+
+// 处理「无棋可下自动跳过」与游戏结束，并安排 AI 回合
+function resolveTurn() {
+  if (gameOver) return;
+  if (!legalMoves(turn).length) {
+    if (!legalMoves(opp(turn)).length) { finishGame(); return; }
+    say(`🚫 ${turnName(turn)}<strong>无棋可下</strong>——全盘没有任何能夹住对方棋子的位置，按规则<strong>自动跳过一手</strong>，仍由${turnName(opp(turn))}继续落子。`, true);
+    turn = opp(turn);
+  }
+  render();
+  if (mode() === 'ai' && turn === 'w')
+    setTimeout(aiMove, 600);   // “思考中…”
+}
+
+function finishGame() {
+  gameOver = true;
+  const [nb, nw] = counts();
+  let result, coachMsg;
+  if (nb === nw) {
+    result = `🤝 平局！${nb} : ${nw}`;
+    coachMsg = "平局收官！双方都下满了能下的位置。回顾一下：角都抢到几个？";
+  } else {
+    const winner = nb > nw ? 'b' : 'w';
+    result = `🏆 ${turnName(winner)}获胜！${nb} : ${nw}`;
+    const youWin = mode() === 'ai' && winner === 'b';
+    coachMsg = youWin
+      ? "🏆 恭喜获胜！获胜关键往往在于：<strong>抢角</strong>、守住角旁的危险格，后期再一举翻转。"
+      : `游戏结束，${turnName(winner)}子多获胜。想提高？记住三点：<strong>抢角</strong>、角空着时别碰 C/X 位、前期别贪子。点「重新开始」再战！`;
+  }
+  document.getElementById('status').textContent = result;
+  say(coachMsg, true);
+  render();
+}
+
+// ================= AI（执白）=================
+// 静态位置权重表：角最高，角旁的 C/X 位为负，边较好
+const W = [
+  [120, -25, 20,  5,  5, 20, -25, 120],
+  [-25, -45, -5, -5, -5, -5, -45, -25],
+  [ 20,  -5, 15,  3,  3, 15,  -5,  20],
+  [  5,  -5,  3,  3,  3,  3,  -5,   5],
+  [  5,  -5,  3,  3,  3,  3,  -5,   5],
+  [ 20,  -5, 15,  3,  3, 15,  -5,  20],
+  [-25, -45, -5, -5, -5, -5, -45, -25],
+  [120, -25, 20,  5,  5, 20, -25, 120]
+];
+
+function aiMove() {
+  if (gameOver || turn !== 'w') return;
+  const moves = legalMoves('w');
+  if (!moves.length) { resolveTurn(); return; }
+
+  // 贪心打分：位置权重 + 翻转数 + 少量随机；
+  // 若候选格挨着仍空着的角，额外重罚（避免送角）
+  const score = m => {
+    let s = W[m.r][m.c] + m.cells.length * 2 + Math.random() * 4;
+    if (nextToEmptyCorner(m.r, m.c)) s -= 80;
+    return s;
+  };
+  const mv = moves.slice().sort((a, b) => score(b) - score(a))[0];
+  doMove(mv);
+}
+
+// ================= 渲染 =================
+function render() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+
+  // 当前行动方是人类时，标出所有合法落点（教学核心）
+  const humanTurn = !gameOver && (mode() === 'pvp' || turn === 'b');
+  const hints = (isTeach() && humanTurn) ? legalMoves(turn) : [];
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      if (hints.some(m => m.r === r && m.c === c)) cell.classList.add('hint');
+      if (isTeach() && lastMove && lastMove[0] === r && lastMove[1] === c) cell.classList.add('lastmove');
+
+      const p = board[r][c];
+      if (p) {
+        const d = document.createElement('div');
+        d.className = 'piece ' + p + (lastFlipped.has(r + ',' + c) ? ' flip' : '');
+        cell.appendChild(d);
+      }
+      cell.onclick = () => clickCell(r, c);
+      el.appendChild(cell);
+    }
+  }
+
+  // 状态栏
+  if (!gameOver) {
+    const name = mode() === 'ai' && turn === 'w' ? '🤖 AI（白方）思考中…' : turnName(turn);
+    document.getElementById('status').textContent = '轮到 ' + name;
+  }
+
+  // 计分与称呼
+  const [nb, nw] = counts();
+  document.getElementById('scoreB').textContent = nb + ' 子';
+  document.getElementById('scoreW').textContent = nw + ' 子';
+  document.getElementById('labelB').textContent = mode() === 'ai' ? '⚫ 黑方（你）' : '⚫ 黑方';
+  document.getElementById('labelW').textContent = mode() === 'ai' ? '⚪ 白方（AI）' : '⚪ 白方';
+}
+
+resetGame();
+</script>
+</body>
+</html>

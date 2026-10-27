@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>西洋跳棋教学 · Checkers Teacher</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #2b2b3a;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #f0c96b; }
+  .subtitle { font-size: 13px; color: #999; margin-bottom: 16px; }
+
+  .layout { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+  /* ===== 棋盘 ===== */
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 64px);
+    grid-template-rows: repeat(8, 64px);
+    border: 10px solid #6b4a2b;
+    border-radius: 6px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    user-select: none;
+  }
+  .cell { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .cell.light { background: #f0d9b5; }
+  .cell.dark  { background: #b58863; cursor: pointer; }
+  .cell.hint::after {
+    content: ""; width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(60, 200, 90, .85); position: absolute;
+  }
+  .cell.hint-capture::after {
+    content: ""; width: 44px; height: 44px; border-radius: 50%;
+    border: 4px solid rgba(255, 80, 60, .95); position: absolute;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse { 50% { transform: scale(1.12); } }
+  .cell.selected { background: #7fa653 !important; }
+  .cell.lastmove { background: #cdd26a; }
+
+  .piece {
+    width: 50px; height: 50px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; transition: transform .15s;
+    pointer-events: none; position: relative; z-index: 1;
+  }
+  .piece.r { background: radial-gradient(circle at 35% 30%, #ff8a7a, #c62828 70%); box-shadow: inset 0 -5px 8px rgba(0,0,0,.35), 0 3px 5px rgba(0,0,0,.4); }
+  .piece.b { background: radial-gradient(circle at 35% 30%, #666, #161616 70%); box-shadow: inset 0 -5px 8px rgba(0,0,0,.5), 0 3px 5px rgba(0,0,0,.4); }
+  .piece.king { border: 3px solid #f0c96b; }
+
+  /* ===== 侧边栏 ===== */
+  .panel { width: 320px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #3a3a4d; border-radius: 10px; padding: 14px 16px; }
+  .card h2 { font-size: 15px; color: #f0c96b; margin-bottom: 8px; }
+  .card p, .card li { font-size: 13px; line-height: 1.7; color: #ccc; }
+  .card ol, .card ul { padding-left: 18px; }
+
+  #coach {
+    min-height: 64px; background: #2e4a35; border-left: 4px solid #4caf50;
+    border-radius: 6px; padding: 12px 14px; font-size: 14px; line-height: 1.6;
+  }
+  #coach.warn { background: #4d3a2e; border-left-color: #ff7043; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  button, select {
+    font-family: inherit; font-size: 14px; padding: 8px 16px;
+    border: none; border-radius: 6px; cursor: pointer;
+    background: #f0c96b; color: #333; font-weight: bold;
+  }
+  button:hover { background: #ffe08f; }
+  select { background: #555; color: #eee; font-weight: normal; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ccc; }
+
+  #status { text-align: center; font-size: 15px; margin: 10px 0; min-height: 22px; color: #f0c96b; font-weight: bold; }
+  #scores { display: flex; justify-content: space-between; font-size: 13px; color: #bbb; margin-bottom: 6px; }
+
+  @media (max-width: 600px) {
+    #board { grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); border-width: 6px; }
+    .cell { width: 40px; height: 40px; }
+    .piece { width: 32px; height: 32px; font-size: 15px; }
+    .cell.hint-capture::after { width: 30px; height: 30px; border-width: 3px; }
+    .panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>♟ 西洋跳棋教学</h1>
+<div class="subtitle">American Checkers 8×8 · 点击棋子开始 · 绿色=可移动 · 红圈=吃子</div>
+
+<div class="layout">
+  <div>
+    <div id="scores"><span>⚫ 对方（黑）</span><span id="scoreB"></span></div>
+    <div id="board"></div>
+    <div id="status"></div>
+    <div id="scores"><span>🔴 你（红）</span><span id="scoreR"></span></div>
+  </div>
+
+  <div class="panel">
+    <div id="coach">欢迎来到西洋跳棋！点击下方任意一个<strong>红棋</strong>，绿色的点就是它可以走的位置。</div>
+
+    <div class="card controls">
+      <button onclick="resetGame()">🔄 重新开始</button>
+      <select id="mode" onchange="resetGame()">
+        <option value="ai">人机对战（AI 执黑）</option>
+        <option value="pvp">双人对战</option>
+      </select>
+    </div>
+
+    <div class="card toggle-row">
+      <input type="checkbox" id="teachMode" checked onchange="render()">
+      <label for="teachMode">教学模式（显示提示与讲解）</label>
+    </div>
+
+    <div class="card">
+      <h2>📖 规则速览</h2>
+      <ol>
+        <li><strong>走子</strong>：普通棋子沿斜线<strong>向前走一格</strong>，只能走深色格子。</li>
+        <li><strong>吃子</strong>：斜前方有敌棋、且其后一格为空时，可以<strong>跳过它</strong>吃掉它。</li>
+        <li><strong>必须吃</strong>：轮到你有吃子机会时，<strong>必须吃子</strong>，不能只走棋。</li>
+        <li><strong>连跳</strong>：一次吃子后若还能继续吃，必须<strong>连续跳吃</strong>。</li>
+        <li><strong>升王 👑</strong>：棋子到达对方底线即加冕为「王」，王<strong>可以前进也可以后退</strong>。</li>
+        <li><strong>胜负</strong>：吃光对方所有棋子，或让对方<strong>无棋可走</strong>，即获胜。</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>💡 新手小贴士</h2>
+      <ul>
+        <li>尽量把棋子往<strong>中间</strong>走，选择更多。</li>
+        <li>后排留一列棋守家，防止对手轻易升王。</li>
+        <li>注意别让你的棋子孤军深入被「搭桥」吃掉。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= 数据结构 =================
+// board[r][c]: 0=空, 'r'=红兵, 'R'=红王, 'b'=黑兵, 'B'=黑王
+// 深色可下棋格: (r + c) % 2 === 1
+// 红方在下方(row 5-7)，向上走(row 减小)；黑方在上方，向下走。
+
+let board, turn, selected, lockedFrom, gameOver, lastMove;
+
+const isTeach = () => document.getElementById('teachMode').checked;
+const mode = () => document.getElementById('mode').value;
+const enemyOf = t => t === 'r' ? 'b' : 'r';
+const colorOf = p => p === 'r' || p === 'R' ? 'r' : 'b';
+const isKing = p => p === 'R' || p === 'B';
+
+function initBoard() {
+  board = Array.from({length: 8}, () => Array(8).fill(0));
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 8; c++)
+      if ((r + c) % 2 === 1) board[r][c] = 'b';
+  for (let r = 5; r < 8; r++)
+    for (let c = 0; c < 8; c++)
+      if ((r + c) % 2 === 1) board[r][c] = 'r';
+}
+
+// ================= 走法生成 =================
+function dirsFor(piece) {
+  if (isKing(piece)) return [[1,1],[1,-1],[-1,1],[-1,-1]];
+  return piece === 'r' ? [[-1,1],[-1,-1]] : [[1,1],[1,-1]];
+}
+const inBoard = (r, c) => r >= 0 && r < 8 && c >= 0 && c < 8;
+
+function capturesFrom(r, c) {
+  const p = board[r][c], out = [];
+  for (const [dr, dc] of dirsFor(p)) {
+    const mr = r + dr, mc = c + dc, lr = r + 2*dr, lc = c + 2*dc;
+    if (inBoard(lr, lc) && board[mr][mc] && colorOf(board[mr][mc]) !== colorOf(p) && !board[lr][lc])
+      out.push({ from: [r, c], to: [lr, lc], jumped: [mr, mc] });
+  }
+  return out;
+}
+
+function quietFrom(r, c) {
+  const p = board[r][c], out = [];
+  for (const [dr, dc] of dirsFor(p)) {
+    const nr = r + dr, nc = c + dc;
+    if (inBoard(nr, nc) && !board[nr][nc])
+      out.push({ from: [r, c], to: [nr, nc], jumped: null });
+  }
+  return out;
+}
+
+// 某方所有合法走法（有吃必吃）
+function allMoves(color) {
+  const caps = [], quiet = [];
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++)
+      if (board[r][c] && colorOf(board[r][c]) === color) {
+        caps.push(...capturesFrom(r, c));
+        quiet.push(...quietFrom(r, c));
+      }
+  return caps.length ? caps : quiet;
+}
+
+// ================= 游戏流程 =================
+function resetGame() {
+  initBoard();
+  turn = 'r';            // 红方（玩家）先行
+  selected = null;
+  lockedFrom = null;     // 连跳锁定中的棋子位置
+  gameOver = false;
+  lastMove = null;
+  say("欢迎来到西洋跳棋！点击下方任意一个<strong>红棋</strong>，绿色的点就是它可以走的位置。");
+  render();
+}
+
+function say(msg, warn = false) {
+  if (!isTeach() && !warn) { document.getElementById('coach').textContent = ""; return; }
+  const el = document.getElementById('coach');
+  el.innerHTML = msg;
+  el.className = warn ? 'warn' : '';
+}
+
+function clickCell(r, c) {
+  if (gameOver) return;
+  if (mode() === 'ai' && turn === 'b') return;   // AI 回合不可点
+
+  const p = board[r][c];
+
+  // 连跳锁定中：只能点锁定棋子的高亮落点
+  if (lockedFrom) {
+    const moves = capturesFrom(...lockedFrom);
+    const mv = moves.find(m => m.to[0] === r && m.to[1] === c);
+    if (mv) doMove(mv);
+    return;
+  }
+
+  // 点自己棋子 → 选中
+  if (p && colorOf(p) === turn) {
+    selected = [r, c];
+    const caps = capturesFrom(r, c);
+    const mustCapture = allMoves(turn).some(m => m.jumped);
+    if (isTeach()) {
+      if (mustCapture && !caps.length)
+        say("⚠️ 这盘有吃子机会，规则是<strong>必须吃子</strong>！请选择能吃掉对方棋子的那颗棋（红圈提示）。", true);
+      else if (caps.length)
+        say("这颗棋可以吃子！点击<strong>红圈</strong>位置跳过去吃掉对方。");
+      else if (quietFrom(r, c).length)
+        say("普通棋子只能<strong>斜着向前走一格</strong>。点击绿点移动它。");
+      else
+        say("这颗棋被堵住了，没有可走的路，换一颗试试。");
+    }
+    render();
+    return;
+  }
+
+  // 点落点 → 走棋
+  if (selected) {
+    const mustCapture = allMoves(turn).some(m => m.jumped);
+    const legal = (mustCapture ? capturesFrom(...selected) : quietFrom(...selected));
+    const mv = legal.find(m => m.to[0] === r && m.to[1] === c);
+    if (mv) { doMove(mv); return; }
+  }
+  selected = null;
+  render();
+}
+
+function doMove(mv) {
+  const [fr, fc] = mv.from, [tr, tc] = mv.to;
+  const piece = board[fr][fc];
+  board[tr][tc] = piece;
+  board[fr][fc] = 0;
+  lastMove = mv.to;
+
+  if (mv.jumped) {
+    board[mv.jumped[0]][mv.jumped[1]] = 0;   // 吃掉被跳过的子
+    // 升王则连跳终止
+    const promoted = tryPromote(tr, tc);
+    if (promoted) {
+      say("🎉 你的棋子到达对方底线，<strong>加冕为王 👑</strong>！王可以前进也可以后退，非常强力。连跳到此结束。");
+      endTurn();
+      return;
+    }
+    const more = capturesFrom(tr, tc);
+    if (more.length) {
+      lockedFrom = [tr, tc];
+      selected = null;
+      say("🔥 <strong>连跳！</strong>这颗棋还能继续吃子，规则要求必须继续跳。点击下一个红圈！", true);
+      render();
+      return;
+    }
+    say("好棋！你吃掉了一颗对方棋子。" + (turn === 'r' ? " 现在轮到对方。" : ""));
+  } else {
+    if (tryPromote(tr, tc))
+      say("🎉 你的棋子到达对方底线，<strong>加冕为王 👑</strong>！王可以前进也可以后退。");
+    else if (isTeach() && turn === 'r')
+      say("走好了。记住：斜前方有敌棋且后面有空位时就能跳吃它，而且<strong>必须吃</strong>。");
+  }
+  endTurn();
+}
+
+function tryPromote(r, c) {
+  if (board[r][c] === 'r' && r === 0) { board[r][c] = 'R'; return true; }
+  if (board[r][c] === 'b' && r === 7) { board[r][c] = 'B'; return true; }
+  return false;
+}
+
+function endTurn() {
+  selected = null;
+  lockedFrom = null;
+  turn = enemyOf(turn);
+  render();
+  checkGameEnd();
+  if (!gameOver && mode() === 'ai' && turn === 'b')
+    setTimeout(aiMove, 650);
+}
+
+function checkGameEnd() {
+  const moves = allMoves(turn);
+  let pieces = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++)
+      if (board[r][c] && colorOf(board[r][c]) === turn) pieces++;
+  if (!pieces || !moves.length) {
+    gameOver = true;
+    const winner = enemyOf(turn);
+    const youWin = winner === 'r';
+    document.getElementById('status').textContent = youWin ? "🏆 你赢了！恭喜！" : "😢 对方获胜，再来一局？";
+    say(youWin
+      ? "🏆 你赢了！获胜方式有两种：<strong>吃光对方所有棋子</strong>，或让对方<strong>无棋可走</strong>。"
+      : "这局输了。回顾一下：是不是后排防守太松，让对方升王了？点「重新开始」再战！", true);
+    render();
+  }
+}
+
+// ================= 简单 AI（执黑）=================
+function aiMove() {
+  if (gameOver) return;
+  const moves = allMoves('b');
+  if (!moves.length) { checkGameEnd(); return; }
+
+  // 优先：吃子（规则已强制）> 升王 > 随机；尽量避免走进被吃位置
+  const score = m => {
+    let s = Math.random();
+    if (m.jumped) s += 10;
+    const p = board[m.from[0]][m.from[1]];
+    if (p === 'b' && m.to[0] === 7) s += 5;          // 升王
+    if (!isKing(p) && (m.to[1] === 0 || m.to[1] === 7)) s += 0.5; // 靠边安全
+    return s;
+  };
+  const mv = moves.slice().sort((a, b) => score(b) - score(a))[0];
+  const wasCapture = !!mv.jumped;
+
+  // 执行（含 AI 连跳）
+  applyAi(mv);
+  if (wasCapture && isTeach())
+    say("对方吃了你一颗棋。提示：棋子孤军深入时容易被「搭桥」跳吃，注意它身后是否有空位。");
+  else if (isTeach())
+    say("对方走了一步。轮到你了，看看有没有吃子的机会（有吃必吃）。");
+
+  endTurn();
+}
+
+function applyAi(mv) {
+  const [fr, fc] = mv.from, [tr, tc] = mv.to;
+  board[tr][tc] = board[fr][fc];
+  board[fr][fc] = 0;
+  if (mv.jumped) {
+    board[mv.jumped[0]][mv.jumped[1]] = 0;
+    if (!tryPromote(tr, tc)) {
+      const more = capturesFrom(tr, tc);
+      if (more.length) {
+        render();
+        applyAi(more[Math.floor(Math.random() * more.length)]);
+        return;
+      }
+    }
+  } else {
+    tryPromote(tr, tc);
+  }
+  lastMove = mv.to;
+}
+
+// ================= 渲染 =================
+function render() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+
+  const mustCapture = !gameOver && allMoves(turn).some(m => m.jumped);
+  let hints = [], hintCaps = [], forcePieces = [];
+
+  if (!gameOver) {
+    if (lockedFrom) {
+      hintCaps = capturesFrom(...lockedFrom).map(m => m.to);
+    } else if (selected) {
+      const legal = mustCapture ? capturesFrom(...selected) : quietFrom(...selected);
+      legal.forEach(m => (m.jumped ? hintCaps : hints).push(m.to));
+    }
+    if (mustCapture) {
+      for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 8; c++)
+          if (board[r][c] && colorOf(board[r][c]) === turn && capturesFrom(r, c).length)
+            forcePieces.push([r, c]);
+    }
+  }
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const cell = document.createElement('div');
+      const dark = (r + c) % 2 === 1;
+      cell.className = 'cell ' + (dark ? 'dark' : 'light');
+
+      if (hints.some(([hr, hc]) => hr === r && hc === c)) cell.classList.add('hint');
+      if (hintCaps.some(([hr, hc]) => hr === r && hc === c)) cell.classList.add('hint-capture');
+      if (selected && selected[0] === r && selected[1] === c) cell.classList.add('selected');
+      if (lockedFrom && lockedFrom[0] === r && lockedFrom[1] === c) cell.classList.add('selected');
+      if (isTeach() && lastMove && lastMove[0] === r && lastMove[1] === c) cell.classList.add('lastmove');
+
+      const p = board[r][c];
+      if (p) {
+        const d = document.createElement('div');
+        d.className = 'piece ' + colorOf(p) + (isKing(p) ? ' king' : '');
+        d.textContent = isKing(p) ? '👑' : '';
+        cell.appendChild(d);
+      }
+      cell.onclick = () => clickCell(r, c);
+      el.appendChild(cell);
+    }
+  }
+
+  // 状态栏
+  if (!gameOver) {
+    const name = turn === 'r' ? (mode() === 'ai' ? '你（红方）' : '红方') : (mode() === 'ai' ? 'AI（黑方）思考中…' : '黑方');
+    document.getElementById('status').textContent =
+      (lockedFrom ? '🔥 连跳中！' : '轮到 ' + name) + (mustCapture ? ' · ⚠️ 必须吃子' : '');
+  }
+
+  // 计分
+  let nr = 0, nb = 0;
+  for (let r = 0; r < 8; r++)
+    for (let c = 0; c < 8; c++) {
+      if (board[r][c] === 'r' || board[r][c] === 'R') nr++;
+      if (board[r][c] === 'b' || board[r][c] === 'B') nb++;
+    }
+  document.getElementById('scoreR').textContent = '剩 ' + nr + ' 子';
+  document.getElementById('scoreB').textContent = '剩 ' + nb + ' 子';
+}
+
+resetGame();
+</script>
+</body>
+</html>

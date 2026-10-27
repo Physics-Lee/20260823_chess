@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中国象棋入门 · Xiangqi Tutorial</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #2b2b3a;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #f0c96b; }
+  .subtitle { font-size: 13px; color: #999; margin-bottom: 16px; }
+
+  .layout { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+  /* ===== 棋盘 ===== */
+  #boardWrap {
+    position: relative;
+    border: 10px solid #6b4a2b;
+    border-radius: 6px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    background: #f0d9b5;
+    user-select: none;
+    line-height: 0;
+  }
+  #cv { display: block; }
+  #points { position: absolute; inset: 0; }
+  .point {
+    position: absolute;
+    width: var(--cell); height: var(--cell);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 1;
+  }
+  .point.hint::after {
+    content: ""; width: calc(var(--cell) * .32); height: calc(var(--cell) * .32);
+    border-radius: 50%; background: rgba(60, 200, 90, .85); position: absolute;
+  }
+  .point.hint-cap::after {
+    content: ""; width: calc(var(--cell) * .78); height: calc(var(--cell) * .78);
+    border-radius: 50%; border: 4px solid rgba(255, 80, 60, .95); position: absolute;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse { 50% { transform: scale(1.08); } }
+  .point.lastmove::before {
+    content: ""; width: calc(var(--cell) * .5); height: calc(var(--cell) * .5);
+    border-radius: 50%; background: rgba(240, 201, 107, .35); position: absolute;
+  }
+
+  .piece {
+    width: calc(var(--cell) * .84); height: calc(var(--cell) * .84);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "KaiTi", "STKaiti", "SimSun", serif;
+    font-size: calc(var(--cell) * .46); font-weight: bold;
+    color: #fdf3dd;
+    pointer-events: none; position: relative; z-index: 1;
+  }
+  .piece.r { background: radial-gradient(circle at 35% 30%, #ff8a7a, #c62828 70%); box-shadow: inset 0 -5px 8px rgba(0,0,0,.35), 0 3px 5px rgba(0,0,0,.4); }
+  .piece.b { background: radial-gradient(circle at 35% 30%, #666, #161616 70%); box-shadow: inset 0 -5px 8px rgba(0,0,0,.5), 0 3px 5px rgba(0,0,0,.4); }
+  .point.selected .piece { outline: 3px solid #f0c96b; outline-offset: 1px; }
+
+  /* ===== 侧边栏 ===== */
+  .panel { width: 320px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #3a3a4d; border-radius: 10px; padding: 14px 16px; }
+  .card h2 { font-size: 15px; color: #f0c96b; margin-bottom: 8px; }
+  .card p, .card li { font-size: 13px; line-height: 1.7; color: #ccc; }
+  .card ol, .card ul { padding-left: 18px; }
+
+  #coach {
+    min-height: 64px; background: #2e4a35; border-left: 4px solid #4caf50;
+    border-radius: 6px; padding: 12px 14px; font-size: 14px; line-height: 1.6;
+  }
+  #coach.warn { background: #4d3a2e; border-left-color: #ff7043; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  button, select {
+    font-family: inherit; font-size: 14px; padding: 8px 16px;
+    border: none; border-radius: 6px; cursor: pointer;
+    background: #f0c96b; color: #333; font-weight: bold;
+  }
+  button:hover { background: #ffe08f; }
+  select { background: #555; color: #eee; font-weight: normal; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ccc; }
+
+  #status { text-align: center; font-size: 15px; margin: 10px 0; min-height: 22px; color: #f0c96b; font-weight: bold; }
+  #scores { display: flex; justify-content: space-between; font-size: 13px; color: #bbb; margin-bottom: 6px; }
+
+  @media (max-width: 600px) {
+    .panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>🀄 中国象棋入门</h1>
+<div class="subtitle">标准 9×10 棋盘 · 点击棋子开始 · 绿点=可落子 · 红圈=可吃子</div>
+
+<div class="layout">
+  <div>
+    <div id="scores"><span>⚫ 对方（黑方）</span><span id="scoreB"></span></div>
+    <div id="boardWrap"><canvas id="cv"></canvas><div id="points"></div></div>
+    <div id="status"></div>
+    <div id="scores"><span>🔴 你（红方）</span><span id="scoreR"></span></div>
+  </div>
+
+  <div class="panel">
+    <div id="coach">欢迎来到中国象棋！点击下方任意一个<strong>红棋</strong>，绿色的点就是它可以走的位置。</div>
+
+    <div class="card controls">
+      <button onclick="resetGame()">🔄 重新开始</button>
+      <select id="mode" onchange="resetGame()">
+        <option value="ai">人机对战（AI 执黑）</option>
+        <option value="pvp">双人对战</option>
+      </select>
+    </div>
+
+    <div class="card toggle-row">
+      <input type="checkbox" id="teachMode" checked>
+      <label for="teachMode">教学模式（显示提示与讲解）</label>
+    </div>
+
+    <div class="card">
+      <h2>📖 规则速览</h2>
+      <ol>
+        <li><strong>胜负</strong>：将死对方「帥/將」即获胜；让对方<strong>无棋可走（困毙）</strong>也算赢。</li>
+        <li><strong>帥/將</strong>：只在九宫格内横竖走一格，不能出宫；两将不能在同一直线上「照面」。</li>
+        <li><strong>仕/士</strong>：在九宫格内斜走一格，是将帅的贴身护卫。</li>
+        <li><strong>相/象</strong>：走「田」字，不能过河；田字中心有子会被<strong>塞象眼</strong>。</li>
+        <li><strong>馬</strong>：走「日」字；正前方紧邻有子会被<strong>蹩马腿</strong>，走不动。</li>
+        <li><strong>車</strong>：横竖直行任意距离，不能越子，威力最大。</li>
+        <li><strong>炮</strong>：走法如車；但吃子时中间必须恰好隔一个棋子当<strong>炮架</strong>。</li>
+        <li><strong>兵/卒</strong>：每次向前走一格；过河后可横走；永远不能后退。</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>💡 新手小贴士</h2>
+      <ul>
+        <li>开局尽快出动<strong>車、馬、炮</strong>等大子，别总走同一个子。</li>
+        <li>炮需要「炮架」才能吃子，留意对方中炮瞄着你的老将。</li>
+        <li>两将不能「照面」——有时巧用老将占线，反而能逼死对方。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= 数据结构 =================
+// board[r][c]: 0=空；红方大写 'K A E H R C P'（帥仕相馬車炮兵），
+//              黑方小写 'k a e h r c p'（將士象馬車砲卒）。
+// 棋子在交叉点上移动：行 r=0 是黑方底线（上方），r=9 是红方底线（下方）。
+// 红方在下方先行，向上进攻（r 减小）；黑方在上方，向下进攻。
+
+const CELL = window.innerWidth < 620 ? 40 : 56;   // 每格像素（窄屏自动缩小）
+const PAD = Math.round(CELL * 0.7);               // 棋盘四周留白
+const inB = (r, c) => r >= 0 && r < 10 && c >= 0 && c < 9;
+
+let board, turn, selected, gameOver, lastMove, capturedBy;
+
+const isTeach = () => document.getElementById('teachMode').checked;
+const mode = () => document.getElementById('mode').value;
+const enemyOf = t => t === 'r' ? 'b' : 'r';
+const colorOf = p => p === p.toUpperCase() ? 'r' : 'b';
+
+// 棋子显示用字
+const CH = { K:'帥', A:'仕', E:'相', H:'馬', R:'車', C:'炮', P:'兵',
+             k:'將', a:'士', e:'象', h:'馬', r:'車', c:'砲', p:'卒' };
+// 子力价值（供 AI 评估吃子）
+const VAL = { r:9, h:4, c:4.5, e:2, a:2, p:1, k:10000 };
+
+function initBoard() {
+  board = Array.from({length: 10}, () => Array(9).fill(0));
+  board[0] = ['r','h','e','a','k','a','e','h','r'];
+  board[2][1] = 'c'; board[2][7] = 'c';
+  for (const c of [0,2,4,6,8]) { board[3][c] = 'p'; board[6][c] = 'P'; }
+  board[7][1] = 'C'; board[7][7] = 'C';
+  board[9] = ['R','H','E','A','K','A','E','H','R'];
+}
+
+// ================= 走法生成 =================
+// genMoves 生成「伪合法」走法（不考虑走后自家将帅被将军）；legalMovesFrom 再过滤。
+
+function genMoves(r, c) {
+  const p = board[r][c];
+  if (!p) return [];
+  const color = colorOf(p), type = p.toLowerCase(), out = [];
+  const push = (nr, nc) => {
+    if (!inB(nr, nc)) return;
+    const t = board[nr][nc];
+    if (!t || colorOf(t) !== color) out.push({ from: [r, c], to: [nr, nc] });
+  };
+
+  if (type === 'r') {                       // 車：横竖直行
+    for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let nr = r + dr, nc = c + dc;
+      while (inB(nr, nc)) {
+        if (!board[nr][nc]) { out.push({ from: [r, c], to: [nr, nc] }); }
+        else { if (colorOf(board[nr][nc]) !== color) out.push({ from: [r, c], to: [nr, nc] }); break; }
+        nr += dr; nc += dc;
+      }
+    }
+  } else if (type === 'c') {                // 炮：移动不越子，吃子须隔一个炮架
+    for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      let nr = r + dr, nc = c + dc, screen = false;
+      while (inB(nr, nc)) {
+        const t = board[nr][nc];
+        if (!screen) {
+          if (!t) out.push({ from: [r, c], to: [nr, nc] });
+          else screen = true;
+        } else if (t) {
+          if (colorOf(t) !== color) out.push({ from: [r, c], to: [nr, nc] });
+          break;
+        }
+        nr += dr; nc += dc;
+      }
+    }
+  } else if (type === 'h') {                // 馬：走「日」，蹩马腿
+    for (const [dr, dc] of [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]]) {
+      const lr = Math.abs(dr) === 2 ? r + dr / 2 : r;   // 马腿位置
+      const lc = Math.abs(dr) === 2 ? c : c + dc / 2;
+      if (inB(lr, lc) && !board[lr][lc]) push(r + dr, c + dc);
+    }
+  } else if (type === 'e') {                // 相/象：走「田」，不过河，塞象眼
+    for (const [dr, dc] of [[2,2],[2,-2],[-2,2],[-2,-2]]) {
+      const nr = r + dr, nc = c + dc;
+      const mySide = color === 'r' ? nr >= 5 : nr <= 4;
+      if (inB(nr, nc) && mySide && !board[r + dr/2][c + dc/2]) push(nr, nc);
+    }
+  } else if (type === 'a') {                // 仕/士：九宫内斜走一格
+    for (const [dr, dc] of [[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const nr = r + dr, nc = c + dc;
+      const inPalace = nc >= 3 && nc <= 5 && (color === 'r' ? nr >= 7 : nr <= 2);
+      if (inB(nr, nc) && inPalace) push(nr, nc);
+    }
+  } else if (type === 'k') {                // 帥/將：九宫内横竖一格 + 飞将
+    for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nr = r + dr, nc = c + dc;
+      const inPalace = nc >= 3 && nc <= 5 && (color === 'r' ? nr >= 7 : nr <= 2);
+      if (inB(nr, nc) && inPalace) push(nr, nc);
+    }
+    const step = color === 'r' ? -1 : 1;    // 飞将：同列无阻隔可直接吃对方将帅
+    let nr = r + step;
+    while (inB(nr, c)) {
+      if (board[nr][c]) {
+        if (board[nr][c].toLowerCase() === 'k') push(nr, c);
+        break;
+      }
+      nr += step;
+    }
+  } else if (type === 'p') {                // 兵/卒：只进不退，过河可横走
+    const fwd = color === 'r' ? -1 : 1;
+    push(r + fwd, c);
+    const crossed = color === 'r' ? r <= 4 : r >= 5;
+    if (crossed) { push(r, c - 1); push(r, c + 1); }
+  }
+  return out;
+}
+
+// 某格子是否被 by 方攻击（用于将军判定；士/象受九宫与半场限制，永远打不到对方将帅，故略）
+function isAttacked(r, c, by) {
+  const R_ = by === 'r' ? 'R' : 'r', C_ = by === 'r' ? 'C' : 'c',
+        H_ = by === 'r' ? 'H' : 'h', K_ = by === 'r' ? 'K' : 'k',
+        P_ = by === 'r' ? 'P' : 'p';
+  // 車 / 炮 / 飞将：沿四条直线扫描
+  for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    let nr = r + dr, nc = c + dc, screen = false;
+    while (inB(nr, nc)) {
+      const p = board[nr][nc];
+      if (p) {
+        if (!screen) {
+          if (p === R_ || (dc === 0 && p === K_)) return true;   // 同列首遇敌将 = 照面
+          screen = true;
+        } else {
+          if (p === C_) return true;                             // 隔一子的炮
+          break;
+        }
+      }
+      nr += dr; nc += dc;
+    }
+  }
+  // 馬（含蹩马腿，马腿相对于攻击方）
+  for (const [dr, dc] of [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]]) {
+    const nr = r + dr, nc = c + dc;
+    if (!inB(nr, nc) || board[nr][nc] !== H_) continue;
+    const lr = Math.abs(dr) === 2 ? r + dr / 2 : r;
+    const lc = Math.abs(dr) === 2 ? c : c + dc / 2;
+    if (!board[lr][lc]) return true;
+  }
+  // 兵/卒
+  if (by === 'r') {
+    if (inB(r+1, c) && board[r+1][c] === P_) return true;                 // 红兵向上打
+    if (r <= 4 && ((c > 0 && board[r][c-1] === P_) || (c < 8 && board[r][c+1] === P_))) return true;
+  } else {
+    if (inB(r-1, c) && board[r-1][c] === P_) return true;                 // 黑卒向下打
+    if (r >= 5 && ((c > 0 && board[r][c-1] === P_) || (c < 8 && board[r][c+1] === P_))) return true;
+  }
+  return false;
+}
+
+function generalPos(color) {
+  const g = color === 'r' ? 'K' : 'k';
+  for (let r = 0; r < 10; r++)
+    for (let c = 0; c < 9; c++)
+      if (board[r][c] === g) return [r, c];
+  return null;
+}
+
+const isInCheck = color => {
+  const gp = generalPos(color);
+  return !gp || isAttacked(gp[0], gp[1], enemyOf(color));
+};
+
+// 过滤掉走后自家将帅被将军（含两将照面）的走法
+function legalMovesFrom(r, c) {
+  const color = colorOf(board[r][c]);
+  return genMoves(r, c).filter(m => {
+    const [tr, tc] = m.to, cap = board[tr][tc];
+    board[tr][tc] = board[r][c]; board[r][c] = 0;
+    const ok = !isInCheck(color);
+    board[r][c] = board[tr][tc]; board[tr][tc] = cap;
+    return ok;
+  });
+}
+
+function allLegalMoves(color) {
+  const out = [];
+  for (let r = 0; r < 10; r++)
+    for (let c = 0; c < 9; c++)
+      if (board[r][c] && colorOf(board[r][c]) === color)
+        out.push(...legalMovesFrom(r, c));
+  return out;
+}
+
+// ================= 游戏流程 =================
+// 选中棋子时的讲解文案（按棋子类型）
+const TEACH = {
+  k: '「帥/將」只能在<strong>九宫格</strong>内横或竖走一格，绝不能出宫。红黑两将也不能在同一直线上无子阻隔地「照面」。',
+  a: '「仕/士」在九宫格内<strong>斜走一格</strong>，是将帅的贴身护卫，不能出宫。',
+  e: '「相/象」走<strong>「田」字</strong>（斜走两格），不能过河；田字中心有子会被<strong>塞象眼</strong>走不动。',
+  h: '「馬」走<strong>「日」字</strong>；若正前方紧邻有子挡住马腿（<strong>蹩马腿</strong>），那个方向就走不了。',
+  r: '「車」横竖直行<strong>任意距离</strong>，不能越过棋子，是威力最大的棋子。',
+  c: '「炮」平时走法如車；但<strong>吃子时必须恰好隔一个棋子</strong>当「炮架」，隔多了少了都不行。',
+  p: '「兵/卒」每次<strong>向前走一格</strong>；过河后可以横走，但永远不能后退。'
+};
+// 走法不合法时的简短规则提示
+const RULE = {
+  k: '帥/將只能在九宫内横竖走一格，且两将不能照面',
+  a: '仕/士只能在九宫内斜走一格',
+  e: '相/象走「田」字、不能过河，且田心不能有子（塞象眼）',
+  h: '馬走「日」字，正前方紧邻有子会被「蹩马腿」',
+  r: '車只能横竖直行，不能越过棋子',
+  c: '炮移动时不能越子，吃子必须恰好隔一个「炮架」',
+  p: '兵/卒只能向前走一格，过河后才能横走，永不后退'
+};
+
+function resetGame() {
+  initBoard();
+  turn = 'r';              // 红方（玩家）先行
+  selected = null;
+  gameOver = false;
+  lastMove = null;
+  capturedBy = { r: [], b: [] };
+  say("欢迎来到中国象棋！红方先行。点击下方任意一个<strong>红棋</strong>，绿色的点就是它可以走的位置，红圈表示可以吃掉的对方棋子。");
+  render();
+}
+
+function say(msg, warn = false) {
+  if (!isTeach() && !warn) { document.getElementById('coach').textContent = ""; return; }
+  const el = document.getElementById('coach');
+  el.innerHTML = msg;
+  el.className = warn ? 'warn' : '';
+}
+
+function clickCell(r, c) {
+  if (gameOver) return;
+  if (mode() === 'ai' && turn === 'b') return;   // AI 回合不可点
+
+  const p = board[r][c];
+
+  // 点自己棋子 → 选中并讲解
+  if (p && colorOf(p) === turn) {
+    selected = [r, c];
+    const legal = legalMovesFrom(r, c);
+    const type = p.toLowerCase();
+    if (isTeach()) {
+      if (isInCheck(turn))
+        say("⚠️ 你正被<strong>将军</strong>！必须走一步能解除将军的棋（应将），点击绿点试试。", true);
+      else if (!legal.length)
+        say("这颗「" + CH[p] + "」现在没有合法走法（可能被堵住或受牵制），换一颗试试。");
+      else
+        say(TEACH[type] + " 它可以走到 <strong>" + legal.length + "</strong> 个位置（绿点）。");
+    }
+    render();
+    return;
+  }
+
+  // 点落点 → 走棋
+  if (selected) {
+    const [sr, sc] = selected;
+    const sp = board[sr][sc];
+    const mv = legalMovesFrom(sr, sc).find(m => m.to[0] === r && m.to[1] === c);
+    if (mv) { doMove(mv); return; }
+    // 区分：走法本身不符合规则，还是会送将
+    const pseudo = genMoves(sr, sc).some(m => m.to[0] === r && m.to[1] === c);
+    if (pseudo)
+      say("⚠️ 这步<strong>不能走</strong>：走后你的" + (turn === 'r' ? '帥' : '將') + "会被将军（或造成两将照面），规则不允许！", true);
+    else
+      say("⚠️ 这样走不符合规则：" + RULE[sp.toLowerCase()] + "。绿色圆点才是它可以落子的位置。", true);
+    render();
+    return;
+  }
+
+  if (isTeach()) say("先点击<strong>你自己的一颗棋子</strong>（" + (turn === 'r' ? '红棋' : '黑棋') + "），再点绿点落子。");
+}
+
+function doMove(mv) {
+  const [fr, fc] = mv.from, [tr, tc] = mv.to;
+  const piece = board[fr][fc], cap = board[tr][tc];
+  board[tr][tc] = piece;
+  board[fr][fc] = 0;
+  lastMove = mv;
+  selected = null;
+  if (cap) capturedBy[turn].push(cap);
+
+  const mover = turn;
+  turn = enemyOf(turn);
+  const chk = isInCheck(turn);
+  const noMoves = allLegalMoves(turn).length === 0;
+
+  if (noMoves) {           // 将死或困毙都算输
+    gameOver = true;
+    const youWin = mover === 'r';
+    const how = chk ? "被<strong>将死</strong>" : "<strong>无棋可走（困毙）</strong>——象棋中困毙也算输";
+    document.getElementById('status').textContent = youWin ? "🏆 你赢了！恭喜！" : "😢 " + (mode() === 'ai' ? "AI" : "黑方") + "获胜，再来一局？";
+    say(youWin
+      ? "🏆 绝杀！对方" + how + "。干得漂亮，点「重新开始」再来一局吧！"
+      : "这局输了：你" + how + "。回顾一下是哪步让老将陷入险境？点「重新开始」再战！", true);
+    render();
+    return;
+  }
+
+  if (chk) {
+    if (mover === 'r')
+      say("⚔️ <strong>将军！</strong>你的「" + CH[piece] + "」正攻击对方老將，它必须应将。");
+    else
+      say("⚠️ <strong>将军！</strong>你的帥正被攻击，必须应将：可以躲帥、垫子或吃掉来犯的棋子。", true);
+  } else if (cap) {
+    if (piece.toLowerCase() === 'c')
+      say("好棋！炮借一个「炮架」打掉了对方的「" + CH[cap] + "」。记住：炮吃子必须<strong>恰好隔一个棋子</strong>。");
+    else
+      say("好棋，吃掉了对方的「" + CH[cap] + "」！" + (isTeach() ? " 子力大致价值：車 &gt; 馬 ≈ 炮 &gt; 相/仕 &gt; 兵。" : ""));
+  } else if (isTeach() && mover === 'r') {
+    say("走好了。" + (mode() === 'ai' ? " AI 正在思考应对……" : " 轮到对方了。"));
+  }
+
+  render();
+  if (!gameOver && mode() === 'ai' && turn === 'b')
+    setTimeout(aiMove, 600);
+}
+
+// ================= 简单 AI（执黑）=================
+// 不做搜索：按吃子价值打分 + 少量随机性，绝不走非法棋。
+function aiMove() {
+  if (gameOver) return;
+  const moves = allLegalMoves('b');
+  if (!moves.length) return;               // 已在 doMove 中判负，防御性返回
+
+  const score = m => {
+    let s = Math.random() * 4;                                    // 随机扰动
+    const cap = board[m.to[0]][m.to[1]];
+    if (cap) s += VAL[cap.toLowerCase()] * 100;                   // 优先吃子，将帅价值无穷大
+    const p = board[m.from[0]][m.from[1]];
+    if (p === 'p') { s += m.to[0] * 0.3; if (m.to[0] >= 5) s += 1; } // 卒过河奖励
+    return s;
+  };
+  let best = moves[0], bs = -Infinity;
+  for (const m of moves) { const s = score(m); if (s > bs) { bs = s; best = m; } }
+  doMove(best);
+}
+
+// ================= 渲染 =================
+function drawBoard() {
+  const cv = document.getElementById('cv');
+  const W = 8 * CELL, H = 9 * CELL;
+  cv.width = W + 2 * PAD; cv.height = H + 2 * PAD;
+  const ctx = cv.getContext('2d');
+  const X = c => PAD + c * CELL, Y = r => PAD + r * CELL;
+  const line = (x1, y1, x2, y2) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
+
+  ctx.fillStyle = '#f0d9b5';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.strokeStyle = '#7a4a1e';
+
+  ctx.lineWidth = 2.5;                                  // 外框
+  ctx.strokeRect(X(0), Y(0), W, H);
+  ctx.lineWidth = 1.3;
+  for (let r = 1; r < 9; r++) line(X(0), Y(r), X(8), Y(r));          // 横线
+  for (let c = 1; c < 8; c++) {                                     // 竖线（楚河汉界处断开）
+    line(X(c), Y(0), X(c), Y(4));
+    line(X(c), Y(5), X(c), Y(9));
+  }
+  line(X(3), Y(0), X(5), Y(2)); line(X(5), Y(0), X(3), Y(2));        // 九宫斜线
+  line(X(3), Y(7), X(5), Y(9)); line(X(5), Y(7), X(3), Y(9));
+
+  ctx.fillStyle = '#8a5a2b';                                        // 河界文字
+  ctx.font = 'bold ' + Math.round(CELL * 0.55) + 'px KaiTi, STKaiti, SimSun, serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('楚  河', X(2), Y(4.5));
+  ctx.fillText('汉  界', X(6), Y(4.5));
+
+  const g = CELL * 0.12, len = CELL * 0.2;                          // 炮位/兵位角标
+  const marks = [[1,2],[7,2],[0,3],[2,3],[4,3],[6,3],[8,3],
+                 [0,6],[2,6],[4,6],[6,6],[8,6],[1,7],[7,7]];
+  ctx.lineWidth = 1.3;
+  for (const [c, r] of marks)
+    for (const [dx, dy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+      if ((c === 0 && dx === -1) || (c === 8 && dx === 1)) continue;
+      const x = X(c) + dx * g, y = Y(r) + dy * g;
+      line(x, y, x + dx * len, y);
+      line(x, y, x, y + dy * len);
+    }
+}
+
+function render() {
+  const wrap = document.getElementById('boardWrap');
+  wrap.style.setProperty('--cell', CELL + 'px');
+  const el = document.getElementById('points');
+  el.innerHTML = '';
+
+  let hints = [], hintCaps = [];
+  if (!gameOver && selected)
+    for (const m of legalMovesFrom(...selected))
+      (board[m.to[0]][m.to[1]] ? hintCaps : hints).push(m.to);
+
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 9; c++) {
+      const pt = document.createElement('div');
+      pt.className = 'point';
+      pt.style.left = (PAD + c * CELL - CELL / 2) + 'px';
+      pt.style.top  = (PAD + r * CELL - CELL / 2) + 'px';
+
+      if (hints.some(([hr, hc]) => hr === r && hc === c)) pt.classList.add('hint');
+      if (hintCaps.some(([hr, hc]) => hr === r && hc === c)) pt.classList.add('hint-cap');
+      if (selected && selected[0] === r && selected[1] === c) pt.classList.add('selected');
+      if (isTeach() && lastMove &&
+          ((lastMove.from[0] === r && lastMove.from[1] === c) || (lastMove.to[0] === r && lastMove.to[1] === c)))
+        pt.classList.add('lastmove');
+
+      const p = board[r][c];
+      if (p) {
+        const d = document.createElement('div');
+        d.className = 'piece ' + colorOf(p);
+        d.textContent = CH[p];
+        pt.appendChild(d);
+      }
+      pt.onclick = () => clickCell(r, c);
+      el.appendChild(pt);
+    }
+  }
+
+  // 状态栏
+  if (!gameOver) {
+    const name = turn === 'r'
+      ? (mode() === 'ai' ? '你（红方）' : '红方')
+      : (mode() === 'ai' ? 'AI（黑方）思考中…' : '黑方');
+    document.getElementById('status').textContent =
+      '轮到 ' + name + (isInCheck(turn) ? ' · ⚠️ 将军！' : '');
+  }
+
+  // 吃子展示
+  document.getElementById('scoreR').textContent =
+    '吃子 ' + (capturedBy.r.length ? capturedBy.r.map(p => CH[p]).join(' ') : '—');
+  document.getElementById('scoreB').textContent =
+    '吃子 ' + (capturedBy.b.length ? capturedBy.b.map(p => CH[p]).join(' ') : '—');
+}
+
+drawBoard();
+resetGame();
+</script>
+</body>
+</html>

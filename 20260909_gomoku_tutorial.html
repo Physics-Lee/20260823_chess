@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五子棋入门 · Gomoku Tutorial</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #2b2b3a;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #f0c96b; }
+  .subtitle { font-size: 13px; color: #999; margin-bottom: 16px; }
+
+  .layout { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+  /* ===== 棋盘 ===== */
+  #board {
+    display: grid;
+    grid-template-columns: repeat(15, 34px);
+    grid-template-rows: repeat(15, 34px);
+    background: #dcb35c;                       /* 木质底色 */
+    border: 10px solid #6b4a2b;
+    border-radius: 6px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    user-select: none;
+  }
+  .pt { position: relative; }
+  /* 用伪元素画横竖网格线，落在交叉点上 */
+  .pt::before {
+    content: ""; position: absolute; top: 50%; left: 0; right: 0;
+    height: 1px; background: #8a6d3b; transform: translateY(-.5px);
+  }
+  .pt::after {
+    content: ""; position: absolute; left: 50%; top: 0; bottom: 0;
+    width: 1px; background: #8a6d3b; transform: translateX(-.5px);
+  }
+  /* 边缘交叉点只画半条线 */
+  .pt.c0::before  { left: 50%; }
+  .pt.c14::before { right: 50%; }
+  .pt.r0::after   { top: 50%; }
+  .pt.r14::after  { bottom: 50%; }
+
+  /* 星位（天元 + 四星） */
+  .star-dot {
+    position: absolute; top: 50%; left: 50%; width: 8px; height: 8px;
+    border-radius: 50%; background: #5d4526;
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
+
+  /* 棋子 */
+  .stone {
+    position: absolute; top: 50%; left: 50%; width: 86%; height: 86%;
+    border-radius: 50%; transform: translate(-50%, -50%);
+    z-index: 2; pointer-events: none;
+  }
+  .stone.b {
+    background: radial-gradient(circle at 35% 30%, #666, #161616 70%);
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,.5), 0 3px 5px rgba(0,0,0,.4);
+  }
+  .stone.w {
+    background: radial-gradient(circle at 35% 30%, #fff, #c9c9c9 75%);
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,.25), 0 3px 5px rgba(0,0,0,.4);
+  }
+  /* 最后一手标记 */
+  .stone.last { box-shadow: 0 0 0 3px #f0c96b, 0 3px 5px rgba(0,0,0,.4); }
+  /* 获胜五子高亮 */
+  .stone.win { animation: winpulse .8s infinite alternate; }
+  @keyframes winpulse {
+    from { box-shadow: 0 0 0 3px #f0c96b, 0 0 6px #f0c96b; }
+    to   { box-shadow: 0 0 0 5px #ffe08f, 0 0 18px #f0c96b; }
+  }
+  /* 悬停预览（仅轮到你落子且该点为空时） */
+  #board.can-move .pt.empty { cursor: pointer; }
+  .preview {
+    position: absolute; top: 50%; left: 50%; width: 86%; height: 86%;
+    border-radius: 50%; transform: translate(-50%, -50%);
+    z-index: 1; opacity: 0; pointer-events: none;
+    background: radial-gradient(circle at 35% 30%, #666, #161616 70%);
+  }
+  #board.can-move .pt.empty:hover .preview { opacity: .45; }
+
+  /* ===== 侧边栏 ===== */
+  .panel { width: 320px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #3a3a4d; border-radius: 10px; padding: 14px 16px; }
+  .card h2 { font-size: 15px; color: #f0c96b; margin-bottom: 8px; }
+  .card p, .card li { font-size: 13px; line-height: 1.7; color: #ccc; }
+  .card ol, .card ul { padding-left: 18px; }
+
+  #coach {
+    min-height: 64px; background: #2e4a35; border-left: 4px solid #4caf50;
+    border-radius: 6px; padding: 12px 14px; font-size: 14px; line-height: 1.6;
+  }
+  #coach.warn { background: #4d3a2e; border-left-color: #ff7043; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  button, select {
+    font-family: inherit; font-size: 14px; padding: 8px 16px;
+    border: none; border-radius: 6px; cursor: pointer;
+    background: #f0c96b; color: #333; font-weight: bold;
+  }
+  button:hover { background: #ffe08f; }
+  select { background: #555; color: #eee; font-weight: normal; }
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ccc; }
+
+  #status { text-align: center; font-size: 15px; margin-top: 10px; min-height: 22px; color: #f0c96b; font-weight: bold; }
+
+  @media (max-width: 600px) {
+    #board { grid-template-columns: repeat(15, 22px); grid-template-rows: repeat(15, 22px); border-width: 6px; }
+    .star-dot { width: 5px; height: 5px; }
+    .panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>⚫⚪ 五子棋入门</h1>
+<div class="subtitle">Gomoku 15×15 · 黑棋先行 · 横竖斜任意方向五连即胜</div>
+
+<div class="layout">
+  <div>
+    <div id="board"></div>
+    <div id="status"></div>
+  </div>
+
+  <div class="panel">
+    <div id="coach">欢迎来到五子棋！<strong>黑棋先行</strong>，你执黑。点击棋盘上任意一个交叉点落子，先把五颗棋子连成一线就获胜。</div>
+
+    <div class="card controls">
+      <button onclick="resetGame()">🔄 重新开始</button>
+      <select id="mode" onchange="resetGame()">
+        <option value="ai">人机对战（AI 执白）</option>
+        <option value="pvp">双人对战</option>
+      </select>
+    </div>
+
+    <div class="card toggle-row">
+      <input type="checkbox" id="teachMode" checked onchange="render()">
+      <label for="teachMode">教学模式（显示提示与讲解）</label>
+    </div>
+
+    <div class="card">
+      <h2>📖 规则速览</h2>
+      <ol>
+        <li><strong>轮流落子</strong>：黑棋先行，双方轮流把棋子下在交叉点上，落子后不能移动。</li>
+        <li><strong>胜负</strong>：横、竖、斜任意方向率先连成<strong>五子</strong>即获胜（本教程中六连及以上也算获胜）。</li>
+        <li><strong>无禁手</strong>：本教程采用面向新手的无禁手规则，黑棋没有三三、四四、长连等限制。</li>
+        <li><strong>和棋</strong>：棋盘下满仍无人五连，则为平局。</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>💡 新手小贴士</h2>
+      <ul>
+        <li><strong>抢占中心</strong>：天元附近的棋子能向更多方向发展，选择最多。</li>
+        <li><strong>先手做活三</strong>：主动做出「活三」，下一手就能变「冲四」，牢牢掌握先手。</li>
+        <li><strong>注意防守</strong>：对方出现「冲四」时必须立刻挡住，否则下一手就输了。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================= 数据结构 =================
+// board[r][c]: 0=空, 1=黑, 2=白。15×15 交叉点，黑棋先行。
+// 人机模式下玩家执黑(1)，AI 执白(2)。
+
+const SIZE = 15;
+const DIRS = [[0, 1], [1, 0], [1, 1], [1, -1]];   // 横、竖、正斜、反斜
+const STARS = [[3, 3], [3, 11], [11, 3], [11, 11], [7, 7]]; // 星位 + 天元
+
+let board, turn, gameOver, lastMove, winStones, thinking;
+
+const isTeach = () => document.getElementById('teachMode').checked;
+const mode = () => document.getElementById('mode').value;
+const enemyOf = t => t === 1 ? 2 : 1;
+const inBoard = (r, c) => r >= 0 && r < SIZE && c >= 0 && c < SIZE;
+
+function initBoard() {
+  board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+}
+
+// ================= 棋型与胜负判定 =================
+// 从 (r,c) 沿 (dr,dc) 方向数 col 色连续棋子数，并记录尽头是否开放
+function countDir(r, c, dr, dc, col) {
+  let n = 0, i = r + dr, j = c + dc;
+  while (inBoard(i, j) && board[i][j] === col) { n++; i += dr; j += dc; }
+  return { n, open: inBoard(i, j) && board[i][j] === 0, endR: i, endC: j };
+}
+
+// 假设 (r,c) 处有 col 色棋子（无论实际是否已落子），看某方向上的连线情况
+function lineInfo(r, c, dr, dc, col) {
+  const a = countDir(r, c, dr, dc, col);
+  const b = countDir(r, c, -dr, -dc, col);
+  return { total: a.n + b.n + 1, openEnds: (a.open ? 1 : 0) + (b.open ? 1 : 0) };
+}
+
+// 假设在空点 (r,c) 落 col 色子，返回最强棋型：
+// 'win' 五连 | 'openfour' 活四 | 'four' 冲四 | 'openthree' 活三 | null
+function threatAt(r, c, col) {
+  let fours = 0, threes = 0;
+  for (const [dr, dc] of DIRS) {
+    const info = lineInfo(r, c, dr, dc, col);
+    if (info.total >= 5) return 'win';
+    if (info.total === 4) {
+      if (info.openEnds === 2) return 'openfour';   // 两头空，下一手必成五
+      if (info.openEnds === 1) fours++;             // 一头被堵的冲四
+    } else if (info.total === 3 && info.openEnds === 2) {
+      threes++;
+    }
+  }
+  if (fours > 0) return 'four';
+  if (threes > 0) return 'openthree';
+  return null;
+}
+
+// 检查刚落在 (r,c) 的棋子是否五连（六连及以上也算胜），返回连线上的所有棋子坐标
+function getWinLine(r, c) {
+  const col = board[r][c];
+  if (!col) return null;
+  for (const [dr, dc] of DIRS) {
+    const line = [[r, c]];
+    for (const s of [1, -1]) {
+      let i = r + dr * s, j = c + dc * s;
+      while (inBoard(i, j) && board[i][j] === col) { line.push([i, j]); i += dr * s; j += dc * s; }
+    }
+    if (line.length >= 5) return line;
+  }
+  return null;
+}
+
+function isBoardFull() {
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (board[r][c] === 0) return false;
+  return true;
+}
+
+// ================= 游戏流程 =================
+function resetGame() {
+  initBoard();
+  turn = 1;              // 黑棋先行
+  gameOver = false;
+  lastMove = null;
+  winStones = null;
+  thinking = false;
+  say(mode() === 'ai'
+    ? "欢迎来到五子棋！<strong>黑棋先行</strong>，你执黑。点击棋盘上任意一个交叉点落子，先把五颗棋子连成一线就获胜。"
+    : "双人对战：<strong>黑棋先行</strong>，双方轮流点击交叉点落子，先连成五子者获胜。");
+  render();
+}
+
+function say(msg, warn = false) {
+  if (!isTeach() && !warn) { document.getElementById('coach').textContent = ""; return; }
+  const el = document.getElementById('coach');
+  el.innerHTML = msg;
+  el.className = warn ? 'warn' : '';
+}
+
+function clickPoint(r, c) {
+  if (gameOver || thinking) return;
+  if (mode() === 'ai' && turn === 2) return;      // AI 回合不可点
+  if (board[r][c] !== 0) return;                  // 只能落在空点
+  placeStone(r, c);
+}
+
+function placeStone(r, c) {
+  board[r][c] = turn;
+  lastMove = [r, c];
+
+  const win = getWinLine(r, c);
+  if (win) { endGame(turn, win); return; }
+  if (isBoardFull()) { endGame(0, null); return; }
+
+  teachAfterMove(r, c, turn);
+  turn = enemyOf(turn);
+  render();
+
+  if (mode() === 'ai' && turn === 2) {
+    thinking = true;
+    render();
+    setTimeout(aiMove, 500);
+  }
+}
+
+function endGame(winner, line) {
+  gameOver = true;
+  thinking = false;
+  winStones = line;
+  const name = winner === 1 ? '⚫ 黑方' : '⚪ 白方';
+  document.getElementById('status').textContent =
+    winner === 0 ? '🤝 平局！棋盘下满了' :
+    (mode() === 'ai'
+      ? (winner === 1 ? '🏆 你赢了！恭喜！' : '😢 AI 获胜，再来一局？')
+      : `🏆 ${name}获胜！`);
+  if (winner === 0) {
+    say("棋盘下满，无人五连，是和棋。点「重新开始」再战一局！");
+  } else if (mode() === 'ai' && winner === 2) {
+    say("这局 AI 赢了。回顾一下：对方做出冲四或活三时，是不是没有及时防守？点「重新开始」再战！", true);
+  } else {
+    say(`🏆 ${name}五连获胜！金色高亮的就是连成一线的五颗棋子。`);
+  }
+  render();
+}
+
+// 教学模式：落子后根据棋型给出讲解
+function teachAfterMove(r, c, col) {
+  if (!isTeach()) return;
+  const enemy = enemyOf(col);
+  const mine = threatLabel(threatAt(r, c, col));      // 已落子处的棋型（threatAt 把该点视为 col 色）
+  const who = mode() === 'ai' ? (col === 1 ? '你' : '对方') : (col === 1 ? '黑方' : '白方');
+
+  if (mine === 'openfour') {
+    say(`🔥 ${who}做出了<strong>活四</strong>！两头都通的四子连线，对手已经无法阻挡，下一手必胜。`);
+    return;
+  }
+  if (mine === 'four') {
+    say(`⚡ ${who}做出了<strong>冲四</strong>！四子连线只剩一个成五点，${col === 1 && mode() === 'ai' ? '对方' : '对手'}必须立刻挡住那个点，否则下一手就输了。`);
+    return;
+  }
+  if (mine === 'openthree') {
+    say(`👍 ${who}做出了<strong>活三</strong>：连续三子且两头都空。如果对手不防，下一手就能变成活四，主动权在手！`);
+    return;
+  }
+  // 自己没有棋型时，检查对手是否藏着一步成五的威胁
+  if (hasWinningPoint(enemy)) {
+    say(`⚠️ 注意！${mode() === 'ai' && enemy === 1 ? '你' : '对方'}已经有<strong>一步成五</strong>的威胁了，必须找到那个点并挡住它！`, true);
+    return;
+  }
+  say(col === 1
+    ? "落子完成。记住目标：让自己的棋子连起来，同时盯紧对方的连子动向。"
+    : (mode() === 'ai' ? "AI 走完了，轮到你。看看有没有可以连续进攻或需要防守的位置。" : "白方落子完成，轮到黑方。"));
+}
+
+function threatLabel(t) { return t === 'win' ? null : t; }  // 胜负已在 getWinLine 处理
+
+// 某方是否存在一步成五的空点
+function hasWinningPoint(col) {
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (board[r][c] === 0 && threatAt(r, c, col) === 'win') return true;
+  return false;
+}
+
+// ================= AI（执白）=================
+// 一层启发式评估：进攻分 + 防守分，优先自己能赢、其次堵住对方的一步成五。
+const THREAT_VALUE = { win: 1000000, openfour: 50000, four: 20000, openthree: 3000, null: 0 };
+
+function aiMove() {
+  if (gameOver) return;
+  let best = null, bestScore = -1;
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (board[r][c] !== 0) continue;
+      const atk = THREAT_VALUE[threatAt(r, c, 2)];            // 白棋落此的进攻价值
+      const def = THREAT_VALUE[threatAt(r, c, 1)];            // 黑棋落此的威胁（需要防的价值）
+      if (atk + def === 0 && !hasNeighbor(r, c)) continue;    // 远离战场的点不考虑
+      let s = atk + def * 0.95;                               // 防守略低于同级的进攻
+      s += 14 - (Math.abs(r - 7) + Math.abs(c - 7));          // 轻微偏好中心
+      s += Math.random() * 50;                                // 一点随机性，避免千篇一律
+      if (s > bestScore) { bestScore = s; best = [r, c]; }
+    }
+  }
+
+  thinking = false;
+  if (!best) { endGame(0, null); return; }
+
+  board[best[0]][best[1]] = 2;
+  lastMove = best;
+
+  const win = getWinLine(best[0], best[1]);
+  if (win) { endGame(2, win); return; }
+  if (isBoardFull()) { endGame(0, null); return; }
+
+  teachAfterMove(best[0], best[1], 2);
+  turn = 1;
+  render();
+}
+
+// 该点周围两格内是否有棋子（只在这些点附近下棋，模拟棋形生长）
+function hasNeighbor(r, c) {
+  for (let dr = -2; dr <= 2; dr++)
+    for (let dc = -2; dc <= 2; dc++)
+      if ((dr || dc) && inBoard(r + dr, c + dc) && board[r + dr][c + dc] !== 0) return true;
+  return false;
+}
+
+// ================= 渲染 =================
+function render() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+
+  const humanTurn = !gameOver && !thinking && (mode() === 'pvp' || turn === 1);
+  el.classList.toggle('can-move', humanTurn);
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const pt = document.createElement('div');
+      pt.className = `pt r${r} c${c}` + (board[r][c] === 0 ? ' empty' : '');
+
+      if (STARS.some(([sr, sc]) => sr === r && sc === c)) {
+        const dot = document.createElement('span');
+        dot.className = 'star-dot';
+        pt.appendChild(dot);
+      }
+
+      const p = board[r][c];
+      if (p) {
+        const s = document.createElement('span');
+        s.className = 'stone ' + (p === 1 ? 'b' : 'w');
+        if (winStones && winStones.some(([wr, wc]) => wr === r && wc === c)) s.classList.add('win');
+        else if (isTeach() && lastMove && lastMove[0] === r && lastMove[1] === c) s.classList.add('last');
+        pt.appendChild(s);
+      } else if (humanTurn) {
+        const pv = document.createElement('span');
+        pv.className = 'preview';
+        pv.style.background = turn === 1
+          ? 'radial-gradient(circle at 35% 30%, #666, #161616 70%)'
+          : 'radial-gradient(circle at 35% 30%, #fff, #c9c9c9 75%)';
+        pt.appendChild(pv);
+      }
+
+      pt.onclick = () => clickPoint(r, c);
+      el.appendChild(pt);
+    }
+  }
+
+  // 状态栏
+  if (!gameOver) {
+    let name;
+    if (mode() === 'ai') {
+      name = turn === 1 ? '轮到 ⚫ 你（黑方）' : '🤖 AI（白方）思考中…';
+    } else {
+      name = turn === 1 ? '轮到 ⚫ 黑方' : '轮到 ⚪ 白方';
+    }
+    document.getElementById('status').textContent = name;
+  }
+}
+
+resetGame();
+</script>
+</body>
+</html>
